@@ -1,5 +1,5 @@
-// Service de parsing et d'interprétation des commandes vocales en Tunisien (Derja) et Français
-// Respect strict de la convention Franco-arabe phonétique (sans chiffres : pas de 3, 7, 5)
+// Service de parsing et d'interprétation des commandes vocales
+// Supporte : Derja Tunisien (écriture arabe et phonétique franco-arabe) + Français
 
 export interface VoiceParsedResult {
   rawTranscript: string;
@@ -13,6 +13,7 @@ export interface VoiceParsedResult {
   isReset?: boolean;
   explanation: string;
   derjaConfirmation: string;
+  spokenText?: string;
   badges: { label: string; value: string; color: string }[];
 }
 
@@ -22,23 +23,35 @@ interface ContextOptions {
   uniqueTitres?: string[];
 }
 
-// Nettoyage et normalisation du texte (accepte français, derja, et convertit les chiffres éventuels en phonétique)
-function cleanText(text: string): string {
+// Normalise l'arabe standard et derja en supprimant diacritiques et unifiant lettres
+function normalizeArabic(text: string): string {
   return text
+    .replace(/[\u064B-\u065F\u0670]/g, '') // tashkeel
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي');
+}
+
+// Nettoyage et normalisation du texte (accepte arabe, français, derja, chiffres phonétiques 3, 7, 5, 9)
+export function cleanText(text: string): string {
+  const normAr = normalizeArabic(text);
+  return normAr
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // supprime les accents
-    .replace(/3/g, 'a') // 3arbi -> a
-    .replace(/7/g, 'h') // 7a9 -> h
+    .replace(/[\u0300-\u036f]/g, '') // supprime les accents français
+    .replace(/3/g, 'a')  // 3arbi -> a
+    .replace(/7/g, 'h')  // 7a9 -> h
     .replace(/5/g, 'kh') // 5edma -> kh
-    .replace(/9/g, 'q') // 9ahwa -> q
+    .replace(/9/g, 'q')  // 9ahwa -> q
     .replace(/['’]/g, ' ')
-    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, ' ')
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()؟?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-// Banques de confirmations courtes en Derja (Franco-arabe pur sans chiffres)
+// Banques de confirmations en Derja & Français
 const DERJA_CONFIRMATIONS = [
   'Sayé, riguelt les filtres mtaa e-dashboard.',
   'Mriguel, les données elli tlabthom talou.',
@@ -58,12 +71,7 @@ function pickConfirmation(isReset: boolean = false): string {
 }
 
 /**
- * Analyse une requête vocale en Derja tunisien ou en Français et extrait les filtres
- * Exemples :
- * - "Nheb nchouf el khedma mtaa Ahmed"
- * - "Warini les taches elli kemlou mtaa Ahmed"
- * - "Affiche-moi les ventes de Sousse"
- * - "Riguel kol chay" / "Faskh el filtres"
+ * Analyse une requête vocale en Derja tunisien (caractères arabes ou phonétique) ou en Français
  */
 export function parseVoiceQuery(
   rawTranscript: string,
@@ -80,14 +88,13 @@ export function parseVoiceQuery(
   let search = '';
   let isReset = false;
 
-  // 1. Détection de réinitialisation / tout voir en Derja ou Français
-  // Ex: "faskh el filtres", "riguel kol chay", "kol chay", "kollhom", "nadhif", "reinitialiser", "tout voir"
-  if (
+  // 1. Détection de réinitialisation / tout voir
+  const isResetPhrase =
+    // Derja phonétique / Français
     norm.includes('faskh') ||
     norm.includes('nahhi') ||
-    norm.includes('rajjaa kol') ||
-    norm.includes('riguel kol chay') ||
-    norm.includes('riguel koll chay') ||
+    norm.includes('rajjaa') ||
+    norm.includes('riguel kol') ||
     norm.includes('kol chay') ||
     norm.includes('koll chay') ||
     norm.includes('kollhom') ||
@@ -101,60 +108,66 @@ export function parseVoiceQuery(
     norm === 'tout' ||
     norm === 'tous' ||
     norm === 'kol' ||
-    norm === 'el kol'
-  ) {
+    norm === 'el kol' ||
+    // Arabe standard / Derja en caractères arabes
+    norm.includes('فسخ') ||
+    norm.includes('نحي') ||
+    norm.includes('الكل') ||
+    norm.includes('كل شيء') ||
+    norm.includes('كل المهام') ||
+    norm.includes('جميع المهام') ||
+    norm.includes('اعاده ضبط') ||
+    norm.includes('مسح الفلاتر');
+
+  if (isResetPhrase) {
     const hasPerson =
       norm.includes('par ') ||
       norm.includes('pour ') ||
       norm.includes('mtaa ') ||
-      norm.includes('khedmet ');
+      norm.includes('khedmet ') ||
+      norm.includes('متاع') ||
+      norm.includes('خدمه');
 
-    if (!hasPerson && !norm.includes('termine') && !norm.includes('kemlou') && !norm.includes('kamlet') && !norm.includes('attente') && !norm.includes('retard')) {
+    if (!hasPerson && !norm.includes('termine') && !norm.includes('kemlou') && !norm.includes('kamlet') && !norm.includes('attente') && !norm.includes('retard') && !norm.includes('منتهيه') && !norm.includes('متاخره')) {
       return {
         rawTranscript,
         cleanedTranscript: norm,
         isReset: true,
-        explanation: 'Filtres effacés : affichage complet de toutes les tâches.',
+        explanation: 'Filtres effacés : affichage de toutes les tâches.',
         derjaConfirmation: pickConfirmation(true),
         badges: [{ label: 'Filtre', value: 'Koll chay (Toutes les tâches)', color: 'bg-slate-100 text-slate-800' }]
       };
     }
   }
 
-  // 2. Détection de l'état (Derja + Français)
-  // Terminée: "kemlou", "kamlet", "kamlin", "sayé", "khalset", "salou", "termine", "fait", "cloture"
-  if (
-    /\b(kemlou|kamlet|kamlin|khedmet|khalset|salou|termine|terminer|terminee|terminees|fini|finie|finies|cloture|cloturee|fait|realise|realisee)\b/.test(
-      norm
-    ) &&
-    !norm.includes('non termine') &&
-    !norm.includes('pas termine') &&
-    !norm.includes('ma kemlouch') &&
-    !norm.includes('mazel')
-  ) {
+  // 2. Détection de l'état
+  // Terminée: "kemlou", "kamlet", "kamlin", "termine", "fait", "منتهية", "تمت", "كاملة"
+  const isDoneMatch =
+    /\b(kemlou|kamlet|kamlin|khedmet|khalset|salou|termine|terminer|terminee|terminees|fini|finie|finies|cloture|cloturee|fait|realise|realisee)\b/.test(norm) ||
+    /منتهيه|منتهي|تمت|كاملين|كاملة|خالصة|وفات/.test(norm);
+
+  const isWaitMatch =
+    /\b(mazel|mazelou|mazelt|yetstannaw|baqi|ma kemlouch|attente|en attente|non termine|non terminee|pas termine|en cours|a faire|restant|restante)\b/.test(norm) ||
+    /في الانتظار|مازالت|مازالو|قيد الانتظار|غير منتهية|باقي/.test(norm);
+
+  const isLateMatch =
+    /\b(mouakher|mouakhrin|fat waqthom|retard|en retard|depasse|depassee|echue|echu)\b/.test(norm) ||
+    /متاخرة|متاخر|متاخرين|فات وقتها|فات الاجل|مؤخرة|مؤخرين/.test(norm);
+
+  if (isDoneMatch && !isWaitMatch && !norm.includes('non termine') && !norm.includes('pas termine') && !norm.includes('ma kemlouch')) {
     etat = 'Terminée';
     badges.push({ label: 'État', value: 'Terminée (Kemlou)', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' });
-  } else if (
-    // En attente: "mazelou", "mazel", "yetstannaw", "baqi", "ma kemlouch", "attente", "en cours", "a faire"
-    /\b(mazel|mazelou|mazelt|yetstannaw|baqi|ma kemlouch|attente|en attente|non termine|non terminee|pas termine|en cours|a faire|restant|restante)\b/.test(
-      norm
-    )
-  ) {
+  } else if (isWaitMatch) {
     etat = 'En attente';
     badges.push({ label: 'État', value: 'En attente (Mazelou)', color: 'bg-amber-100 text-amber-800 border-amber-300' });
-  } else if (
-    // En retard: "mouakhrin", "mouakher", "fat waqthom", "retard", "depasse"
-    /\b(mouakher|mouakhrin|fat waqthom|retard|en retard|depasse|depassee|echue|echu)\b/.test(
-      norm
-    )
-  ) {
+  } else if (isLateMatch) {
     etat = 'En retard';
     badges.push({ label: 'État', value: 'En retard (Mouakhrin)', color: 'bg-rose-100 text-rose-800 border-rose-300' });
   }
 
   // 3. Détection Fidélité (FID)
-  if (norm.includes('fidelite') || norm.includes('fidelise') || norm.includes('fid')) {
-    if (norm.includes('non') || norm.includes('pas') || norm.includes('mouch') || norm.includes('la')) {
+  if (norm.includes('fidelite') || norm.includes('fidelise') || norm.includes('fid') || norm.includes('وفاء') || norm.includes('فيدليتي')) {
+    if (norm.includes('non') || norm.includes('pas') || norm.includes('mouch') || norm.includes('la') || norm.includes('مش') || norm.includes('غير')) {
       fid = 'non';
       badges.push({ label: 'FID', value: 'Non inscrit (Mouch FID)', color: 'bg-slate-100 text-slate-800 border-slate-300' });
     } else {
@@ -181,7 +194,7 @@ export function parseVoiceQuery(
     for (const d of options.uniqueCdrs) {
       if (!d) continue;
       const dNorm = cleanText(d);
-      if (dNorm && (norm.includes(dNorm) || (dNorm.length > 3 && norm.includes(dNorm)))) {
+      if (dNorm && norm.includes(dNorm)) {
         cdr = d;
         badges.push({ label: 'Délégation / Zone', value: d, color: 'bg-blue-100 text-blue-800 border-blue-300' });
         break;
@@ -189,7 +202,7 @@ export function parseVoiceQuery(
     }
   }
 
-  // 6. Détection Tâche / Titre dans la liste connue ou mots clés
+  // 6. Détection Tâche / Titre dans la liste connue
   if (options.uniqueTitres && options.uniqueTitres.length > 0) {
     for (const t of options.uniqueTitres) {
       if (!t) continue;
@@ -203,13 +216,13 @@ export function parseVoiceQuery(
   }
 
   if (!titre) {
-    if (norm.includes('habillage')) {
+    if (norm.includes('habillage') || norm.includes('تغليف') || norm.includes('واجهة')) {
       const match = (options.uniqueTitres || []).find((t) => cleanText(t).includes('habillage'));
       if (match) titre = match;
-    } else if (norm.includes('cadeau')) {
+    } else if (norm.includes('cadeau') || norm.includes('هدية') || norm.includes('هدايا')) {
       const match = (options.uniqueTitres || []).find((t) => cleanText(t).includes('cadeau'));
       if (match) titre = match;
-    } else if (norm.includes('frigo') || norm.includes('congelateur')) {
+    } else if (norm.includes('frigo') || norm.includes('congelateur') || norm.includes('ثلاجة') || norm.includes('فريڨو')) {
       const match = (options.uniqueTitres || []).find((t) => cleanText(t).includes('frigo'));
       if (match) titre = match;
     }
@@ -219,17 +232,17 @@ export function parseVoiceQuery(
   }
 
   // 7. Extraction de la personne (Réalisateur / Agent / Client)
-  // Supporte : "par Ahmed", "mtaa Ahmed", "khedmet Ahmed", "b yedd Ahmed", "aamlo Ahmed", "pour Ahmed"
   const personMatch =
-    norm.match(/\b(?:mtaa|mta|khedmet|khedmetou|b yedd|aamlo|realise par|fait par|termine par|execute par|par|collaborateur|de|nomme|agent|representant)\s+([a-zA-Z0-9_-]+)/) ||
-    norm.match(/\b(?:pour le client|client)\s+([a-zA-Z0-9_-]+)/);
+    norm.match(/\b(?:mtaa|mta|khedmet|khedmetou|b yedd|aamlo|realise par|fait par|termine par|execute par|par|collaborateur|de|nomme|agent|representant|متاع|خدمة|بيد|عملو)\s+([\u0600-\u06FFa-zA-Z0-9_-]+)/) ||
+    norm.match(/\b(?:pour le client|client|حريف|الزبون)\s+([\u0600-\u06FFa-zA-Z0-9_-]+)/);
 
   if (personMatch && personMatch[1]) {
     const candidate = personMatch[1].trim();
     const stopWords = [
       'exemple', 'zone', 'mois', 'etat', 'statut', 'tache', 'taches',
       'date', 'jour', 'semaine', 'rapport', 'rapports', 'dashboard',
-      'ecran', 'chay', 'kol', 'koll', 'délégation', 'statistiques'
+      'ecran', 'chay', 'kol', 'koll', 'délégation', 'statistiques',
+      'شكون', 'كل', 'يوم', 'تقرير'
     ];
     if (!stopWords.includes(candidate) && candidate.length > 1) {
       const formattedPerson = candidate.charAt(0).toUpperCase() + candidate.slice(1);
@@ -244,11 +257,11 @@ export function parseVoiceQuery(
     }
   }
 
-  // Si pas de personne trouvée via préfixes mais il reste un terme pertinent
+  // Si pas de personne trouvée via préfixes mais il reste un mot clé pertinent
   if (!search && !chef && !titre && !cdr) {
     let residual = norm
-      .replace(/\b(nheb nchouf|nchouf|warini|farrejni|aatihli|aatini|werini|je veux voir|je veux|montre moi|montre|affiche|afficher|donne moi|recherche|trouve|les|des|toutes|tous|tache|taches|khedma|svp|s il vous plait)\b/g, '')
-      .replace(/\b(kemlou|kamlet|kamlin|mazelou|mazel|mouakhrin|mouakher|termine|terminer|terminee|terminees|en attente|attente|en retard|retard)\b/g, '')
+      .replace(/\b(nheb nchouf|nchouf|warini|farrejni|aatihli|aatini|werini|je veux voir|je veux|montre moi|montre|affiche|afficher|donne moi|recherche|trouve|les|des|toutes|tous|tache|taches|khedma|svp|s il vous plait|نحب نشوف|وريني|اعطيني|مهام|مهمة)\b/g, '')
+      .replace(/\b(kemlou|kamlet|kamlin|mazelou|mazel|mouakhrin|mouakher|termine|terminer|terminee|terminees|en attente|attente|en retard|retard|منتهية|في الانتظار|متأخرة)\b/g, '')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -262,7 +275,7 @@ export function parseVoiceQuery(
     }
   }
 
-  // Formulation de l'explication et confirmation Derja
+  // Formulation de l'explication et confirmation
   const parts: string[] = [];
   if (etat) parts.push(`Tâches ${etat.toLowerCase()}s`);
   else parts.push('Tâches');
@@ -294,16 +307,25 @@ export function parseVoiceQuery(
 }
 
 /**
- * Synthétiseur vocal direct en Derja (Franco-arabe phonétique lu par la voix française)
+ * Synthétiseur vocal avec détection automatique de langue (arabe ou français)
  */
-export function speakDerjaConfirmation(text: string) {
+export const speakDerjaConfirmation = (text: string) => speakConfirmation(text, 'fr-FR');
+export { speakConfirmation };
   try {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'fr-FR';
+    utterance.lang = lang;
     utterance.rate = 1.05;
     utterance.pitch = 1.0;
+
+    // Tente de trouver une voix installée correspondant à la langue
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      const match = voices.find((v) => v.lang.startsWith(lang.split('-')[0]));
+      if (match) utterance.voice = match;
+    }
+
     window.speechSynthesis.speak(utterance);
   } catch {
     // ignore
@@ -311,7 +333,7 @@ export function speakDerjaConfirmation(text: string) {
 }
 
 /**
- * Joue des bips audio doux pour une rétroaction vocale naturelle (Web Audio API)
+ * Rétroaction sonore douce et instantanée (Web Audio API)
  */
 export function playVoiceFeedbackSound(type: 'start' | 'success' | 'error') {
   try {
@@ -326,24 +348,24 @@ export function playVoiceFeedbackSound(type: 'start' | 'success' | 'error') {
       osc.connect(gain);
       gain.connect(ctx.destination);
       gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
       osc.frequency.setValueAtTime(440, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.2);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.18);
       osc.start();
-      osc.stop(ctx.currentTime + 0.2);
+      osc.stop(ctx.currentTime + 0.18);
     } else if (type === 'success') {
       const t = ctx.currentTime;
       [523.25, 659.25, 783.99].forEach((freq, idx) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, t + idx * 0.08);
+        osc.frequency.setValueAtTime(freq, t + idx * 0.07);
         osc.connect(gain);
         gain.connect(ctx.destination);
-        gain.gain.setValueAtTime(0.06, t + idx * 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.08 + 0.25);
-        osc.start(t + idx * 0.08);
-        osc.stop(t + idx * 0.08 + 0.25);
+        gain.gain.setValueAtTime(0.06, t + idx * 0.07);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.07 + 0.2);
+        osc.start(t + idx * 0.07);
+        osc.stop(t + idx * 0.07 + 0.2);
       });
     } else if (type === 'error') {
       const osc = ctx.createOscillator();
@@ -353,11 +375,11 @@ export function playVoiceFeedbackSound(type: 'start' | 'success' | 'error') {
       osc.connect(gain);
       gain.connect(ctx.destination);
       gain.gain.setValueAtTime(0.05, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
       osc.start();
-      osc.stop(ctx.currentTime + 0.3);
+      osc.stop(ctx.currentTime + 0.25);
     }
   } catch {
-    // Ignorer si audio bloqué par autoplay policy
+    // Ignorer si audio bloqué
   }
 }

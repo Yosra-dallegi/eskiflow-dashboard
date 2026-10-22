@@ -1,8 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Chart as ChartJS, registerables } from 'chart.js';
 import L from 'leaflet';
 import { TaskItem } from '../types/task';
-import { Check, Clock, AlertTriangle, MapPin, Eye, Calendar, User, ChevronRight, LayoutGrid, Table } from 'lucide-react';
+import {
+  Check,
+  Clock,
+  AlertTriangle,
+  MapPin,
+  Eye,
+  Calendar,
+  User,
+  ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+  ChevronsRight,
+  LayoutGrid,
+  Table
+} from 'lucide-react';
 import { findCdzBudget } from '../data/cdzData';
 
 ChartJS.register(...registerables);
@@ -30,6 +44,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   onConsultTask
 }) => {
   const [tableViewMode, setTableViewMode] = useState<'cards' | 'table'>('cards');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(50);
+
+  // Remise à la page 1 si la liste filtrée change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tasks.length]);
 
   // Chart refs
   const chartChefRef = useRef<HTMLCanvasElement | null>(null);
@@ -45,47 +66,110 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const mapInstance = useRef<L.Map | null>(null);
   const layerGroup = useRef<L.LayerGroup | null>(null);
 
-  // Derived counts
-  const done = tasks.filter((t) => t.done).length;
-  const late = tasks.filter((t) => t.late).length;
-  const wait = tasks.length - done - late;
-  const ec = tasks.filter((t) => t.ecart != null).map((t) => t.ecart as number);
-  const avg = ec.length ? (ec.reduce((a, b) => a + b, 0) / ec.length).toFixed(1) : '–';
-  const nonMatch = tasks.filter((t) => !t.trouve).length;
+  // Derived counts calculés de manière mémoïsée pour éviter les lags
+  const { done, late, wait, avg, ecLength, nonMatch, mapLocatedCount } = useMemo(() => {
+    let d = 0;
+    let l = 0;
+    let w = 0;
+    let sumEc = 0;
+    let countEc = 0;
+    let nm = 0;
+    let loc = 0;
 
-  // Aggregation function
-  const agg = (keyFn: (t: TaskItem) => string) => {
-    const m: Record<string, { k: string; total: number; done: number; wait: number; late: number; ca: number; ecart: number[] }> = {};
-    tasks.forEach((t) => {
-      const k = keyFn(t) || '—';
-      if (!m[k]) m[k] = { k, total: 0, done: 0, wait: 0, late: 0, ca: 0, ecart: [] };
-      m[k].total++;
-      if (t.done) m[k].done++;
-      else if (t.late) m[k].late++;
-      else m[k].wait++;
-      m[k].ca += t.ca26 || 0;
-      if (t.ecart != null) m[k].ecart.push(t.ecart);
-    });
-    return Object.values(m).sort((a, b) => b.total - a.total);
-  };
+    for (let i = 0; i < tasks.length; i++) {
+      const t = tasks[i];
+      if (t.done) d++;
+      else if (t.late) l++;
+      else w++;
 
-  const byChef = agg((t) => t.chef);
-  const byTitre = agg((t) => t.titre);
+      if (t.ecart != null) {
+        sumEc += t.ecart;
+        countEc++;
+      }
+      if (!t.trouve) nm++;
+      if (t.lat && t.lng && t.lat !== 0) loc++;
+    }
 
-  // Matrix calculation
-  const titres = byTitre.map((o) => o.k);
-  const mat: Record<string, Record<string, [number, number]>> = {};
-  tasks.forEach((t) => {
-    const chefKey = t.chef || '— Non rattaché —';
-    if (!mat[chefKey]) mat[chefKey] = {};
-    if (!mat[chefKey][t.titre]) mat[chefKey][t.titre] = [0, 0];
-    mat[chefKey][t.titre][1]++;
-    if (t.done) mat[chefKey][t.titre][0]++;
-  });
+    const average = countEc ? (sumEc / countEc).toFixed(1) : '–';
+    return {
+      done: d,
+      late: l,
+      wait: w,
+      avg: average,
+      ecLength: countEc,
+      nonMatch: nm,
+      mapLocatedCount: loc
+    };
+  }, [tasks]);
 
-  // Realised by collaborator
-  const real = agg((t) => (t.done && t.realisePar ? t.realisePar : ''));
-  const realFiltered = real.filter((r) => r.k !== '' && r.k !== '—');
+  // Agrégations mémoïsées
+  const { byChef, byTitre, mat, realFiltered, titres } = useMemo(() => {
+    const chefMap: Record<string, { k: string; total: number; done: number; wait: number; late: number; ca: number; ecart: number[] }> = {};
+    const titreMap: Record<string, { k: string; total: number; done: number; wait: number; late: number; ca: number; ecart: number[] }> = {};
+    const matrix: Record<string, Record<string, [number, number]>> = {};
+    const realMap: Record<string, { k: string; total: number; ecart: number[] }> = {};
+
+    for (let i = 0; i < tasks.length; i++) {
+      const t = tasks[i];
+
+      // Par Chef
+      const kChef = t.chef || '— Non rattaché —';
+      if (!chefMap[kChef]) chefMap[kChef] = { k: kChef, total: 0, done: 0, wait: 0, late: 0, ca: 0, ecart: [] };
+      chefMap[kChef].total++;
+      if (t.done) chefMap[kChef].done++;
+      else if (t.late) chefMap[kChef].late++;
+      else chefMap[kChef].wait++;
+      chefMap[kChef].ca += t.ca26 || 0;
+      if (t.ecart != null) chefMap[kChef].ecart.push(t.ecart);
+
+      // Par Titre
+      const kTitre = t.titre || '—';
+      if (!titreMap[kTitre]) titreMap[kTitre] = { k: kTitre, total: 0, done: 0, wait: 0, late: 0, ca: 0, ecart: [] };
+      titreMap[kTitre].total++;
+      if (t.done) titreMap[kTitre].done++;
+      else if (t.late) titreMap[kTitre].late++;
+      else titreMap[kTitre].wait++;
+      titreMap[kTitre].ca += t.ca26 || 0;
+
+      // Matrice Chef x Titre
+      if (!matrix[kChef]) matrix[kChef] = {};
+      if (!matrix[kChef][t.titre]) matrix[kChef][t.titre] = [0, 0];
+      matrix[kChef][t.titre][1]++;
+      if (t.done) matrix[kChef][t.titre][0]++;
+
+      // Par Collaborateur
+      if (t.done && t.realisePar) {
+        const kReal = t.realisePar.trim();
+        if (kReal && kReal !== '—') {
+          if (!realMap[kReal]) realMap[kReal] = { k: kReal, total: 0, ecart: [] };
+          realMap[kReal].total++;
+          if (t.ecart != null) realMap[kReal].ecart.push(t.ecart);
+        }
+      }
+    }
+
+    const sortedByChef = Object.values(chefMap).sort((a, b) => b.total - a.total);
+    const sortedByTitre = Object.values(titreMap).sort((a, b) => b.total - a.total);
+    const sortedReal = Object.values(realMap).sort((a, b) => b.total - a.total);
+    const listTitres = sortedByTitre.map((o) => o.k);
+
+    return {
+      byChef: sortedByChef,
+      byTitre: sortedByTitre,
+      mat: matrix,
+      realFiltered: sortedReal,
+      titres: listTitres
+    };
+  }, [tasks]);
+
+  // Pagination des tâches affichées (évite de rendre 9000 éléments simultanément)
+  const totalPages = Math.ceil(tasks.length / pageSize) || 1;
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedTasks = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return tasks.slice(start, start + pageSize);
+  }, [tasks, safePage, pageSize]);
 
   // Chart rendering effect
   useEffect(() => {
@@ -106,6 +190,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
+          animation: { duration: 250 },
           scales: { x: { stacked: true }, y: { stacked: true } },
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
         }
@@ -129,6 +214,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
+          animation: { duration: 250 },
           scales: { x: { stacked: true }, y: { stacked: true } },
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
         }
@@ -152,6 +238,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: { duration: 250 },
           plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
         }
       });
@@ -162,54 +249,45 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       chartTitreInstance.current?.destroy();
       chartEtatInstance.current?.destroy();
     };
-  }, [tasks]);
+  }, [byChef, byTitre, done, wait, late]);
 
-  // Leaflet map initialization effect
+  // Leaflet map initialization effect (optimisé avec limitation à 350 marqueurs)
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstance.current) {
       const map = L.map(mapContainerRef.current, { preferCanvas: true }).setView([34.5, 9.5], 6.5);
       const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
+        maxZoom: 18,
         attribution: '© OpenStreetMap'
       }).addTo(map);
 
-      const esri = L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{x}/{y}',
-        { maxZoom: 19, attribution: 'Tiles © Esri' }
-      );
-
-      let tileErrors = 0;
-      osm.on('tileerror', () => {
-        if (++tileErrors === 4 && map.hasLayer(osm)) {
-          map.removeLayer(osm);
-          esri.addTo(map);
-        }
-      });
-
-      L.control.layers({ 'Plan (OSM)': osm, 'Plan (Esri)': esri }, undefined, { position: 'topright' }).addTo(map);
       layerGroup.current = L.layerGroup().addTo(map);
       mapInstance.current = map;
     }
 
-    // Update markers
     if (layerGroup.current && mapInstance.current) {
       layerGroup.current.clearLayers();
 
       const byClient: Record<string, { t: TaskItem; done: number; wait: number; late: number; titres: string[] }> = {};
-      tasks.forEach((t) => {
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        if (!t.lat || !t.lng || t.lat === 0) continue;
         if (!byClient[t.code]) {
           byClient[t.code] = { t, done: 0, wait: 0, late: 0, titres: [] };
         }
         if (t.done) byClient[t.code].done++;
         else if (t.late) byClient[t.code].late++;
         else byClient[t.code].wait++;
-        byClient[t.code].titres.push(`${t.titre} — ${t.etat}`);
-      });
+        if (byClient[t.code].titres.length < 4) {
+          byClient[t.code].titres.push(`${t.titre} — ${t.etat}`);
+        }
+      }
 
+      const clientList = Object.values(byClient).slice(0, 350);
       const pts: [number, number][] = [];
-      Object.values(byClient).forEach((c) => {
+
+      clientList.forEach((c) => {
         const la = c.t.lat;
         const lo = c.t.lng;
         if (!la || !lo || Math.abs(la) > 90 || Math.abs(lo) > 180) return;
@@ -227,7 +305,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         `;
 
         const marker = L.circleMarker([la, lo], {
-          radius: 8,
+          radius: 7,
           color: '#ffffff',
           weight: 2,
           fillColor: col,
@@ -239,14 +317,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       });
 
       if (pts.length) {
-        mapInstance.current.fitBounds(pts, { padding: [35, 35], maxZoom: 13 });
+        mapInstance.current.fitBounds(pts, { padding: [30, 30], maxZoom: 12 });
       }
 
-      setTimeout(() => mapInstance.current?.invalidateSize(), 200);
+      setTimeout(() => mapInstance.current?.invalidateSize(), 150);
     }
   }, [tasks]);
-
-  const mapLocatedCount = tasks.filter((t) => t.lat && t.lng && t.lat !== 0).length;
 
   return (
     <div className="space-y-4">
@@ -260,10 +336,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <div>
               <h4 className="text-sm font-bold text-white flex items-center gap-2">
                 <span>Vue d'ensemble connectée à Google Drive</span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-500/30 text-blue-200 border border-blue-400/30">ID : 14g_5J2ED...</span>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-500/30 text-blue-200 border border-blue-400/30">Prêt</span>
               </h4>
               <p className="text-xs text-blue-200 mt-0.5">
-                Cliquez sur le bouton bleu <strong>« Actualiser »</strong> en haut pour charger directement vos tâches et votre base clients depuis votre fichier Google Drive.
+                Cliquez sur le bouton bleu <strong>« Actualiser »</strong> en haut pour synchroniser vos tâches depuis Google Drive.
               </p>
             </div>
           </div>
@@ -284,44 +360,38 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
-        {/* Total Tasks */}
         <div className="rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-xs bg-gradient-to-br from-blue-600 to-indigo-600">
           <b className="block text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">{tasks.length}</b>
           <span className="text-[11px] sm:text-xs text-blue-100 font-medium">Tâches</span>
         </div>
 
-        {/* Done */}
         <div className="rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-xs bg-gradient-to-br from-emerald-600 to-teal-500">
           <b className="block text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">{done}</b>
           <span className="text-[11px] sm:text-xs text-emerald-100 font-medium">Terminées</span>
         </div>
 
-        {/* Wait */}
         <div className="rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-xs bg-gradient-to-br from-amber-600 to-amber-500">
           <b className="block text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">{wait}</b>
           <span className="text-[11px] sm:text-xs text-amber-100 font-medium">En attente</span>
         </div>
 
-        {/* Late */}
         <div className="rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-xs bg-gradient-to-br from-rose-600 to-red-500">
           <b className="block text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">{late}</b>
           <span className="text-[11px] sm:text-xs text-rose-100 font-medium">En retard</span>
         </div>
 
-        {/* Completion rate */}
         <div className="rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-xs bg-gradient-to-br from-sky-600 to-cyan-500">
           <b className="block text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">{pct(done, tasks.length)} %</b>
           <span className="text-[11px] sm:text-xs text-sky-100 font-medium truncate">Taux réalisation</span>
         </div>
 
-        {/* Average difference */}
         <div className="rounded-xl sm:rounded-2xl p-3 sm:p-4 text-white shadow-xs bg-gradient-to-br from-indigo-700 to-indigo-500">
-          <b className="block text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">{avg}{ec.length ? ' j' : ''}</b>
+          <b className="block text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight">{avg}{ecLength ? ' j' : ''}</b>
           <span className="text-[11px] sm:text-xs text-indigo-100 font-medium truncate">Écart moyen vs éch.</span>
         </div>
       </div>
 
-      {/* Row 1: Charts Avancement par chef de zone & Avancement par type de tâche */}
+      {/* Row 1: Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
           <h2 className="text-sm font-bold text-slate-900 mb-3">Avancement par chef de zone</h2>
@@ -338,9 +408,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       </div>
 
-      {/* Row 2: Synthèse par chef de zone & Répartition par état */}
+      {/* Row 2: Synthèse par chef & Répartition */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Synthèse par chef de zone table */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm overflow-x-auto">
           <h2 className="text-sm font-bold text-slate-900 mb-3">Synthèse par chef de zone</h2>
           <div className="overflow-x-auto max-h-[300px]">
@@ -391,7 +460,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         </div>
 
-        {/* Répartition par état doughnut */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex flex-col">
           <h2 className="text-sm font-bold text-slate-900 mb-3">Répartition par état</h2>
           <div className="h-[280px] flex-1">
@@ -407,11 +475,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <MapPin className="w-4 h-4 text-blue-600" />
             Carte des clients
             <span className="text-xs font-normal text-slate-500">
-              ({mapLocatedCount} clients géolocalisés sur {tasks.length})
+              ({mapLocatedCount} clients géolocalisés)
             </span>
           </h2>
         </div>
-        <div ref={mapContainerRef} className="h-[400px] w-full rounded-xl z-0 overflow-hidden border border-slate-200" />
+        <div ref={mapContainerRef} className="h-[380px] w-full rounded-xl z-0 overflow-hidden border border-slate-200" />
         <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 mt-2.5 pt-2 border-t border-slate-100">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#2E9E6B]"></span>
@@ -431,7 +499,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       {/* Matrice Chef de zone x Tâche */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm overflow-x-auto">
         <h2 className="text-sm font-bold text-slate-900 mb-3">Chef de zone × tâche (terminées / total)</h2>
-        <div className="overflow-x-auto max-h-[360px]">
+        <div className="overflow-x-auto max-h-[340px]">
           <table className="w-full text-xs text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 sticky top-0">
@@ -504,59 +572,80 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         )}
       </div>
 
-      {/* Détail des tâches */}
+      {/* Détail des tâches avec Pagination Optimisée */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <span>Détail des tâches</span>
-            <span className="text-xs font-normal text-slate-500">
-              ({tasks.length} tâche{tasks.length > 1 ? 's' : ''}{allTasksCount !== tasks.length ? ` sur ${allTasksCount}` : ''})
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-slate-900">
+              Détail des tâches
+            </h2>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+              {tasks.length.toLocaleString('fr-FR')} résultat{tasks.length > 1 ? 's' : ''}
             </span>
-          </h2>
+          </div>
 
-          {/* Toggle Cartes / Tableau sur mobile & tablette */}
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs md:hidden">
-            <button
-              type="button"
-              onClick={() => setTableViewMode('cards')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
-                tableViewMode === 'cards'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <LayoutGrid className="w-3 h-3" />
-              <span>Cartes</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTableViewMode('table')}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
-                tableViewMode === 'table'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Table className="w-3 h-3" />
-              <span>Tableau</span>
-            </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Taille de page */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span>Afficher :</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700 font-semibold focus:outline-none focus:border-blue-500"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </div>
+
+            {/* Toggle Cartes / Tableau sur mobile & tablette */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs md:hidden">
+              <button
+                type="button"
+                onClick={() => setTableViewMode('cards')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
+                  tableViewMode === 'cards'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <LayoutGrid className="w-3 h-3" />
+                <span>Cartes</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTableViewMode('table')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition cursor-pointer ${
+                  tableViewMode === 'table'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Table className="w-3 h-3" />
+                <span>Tableau</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Mobile View: Cards (Adapté pour smartphone) */}
-        <div className={`${tableViewMode === 'cards' ? 'block md:hidden' : 'hidden'} space-y-2.5 max-h-[520px] overflow-y-auto pr-0.5`}>
-          {tasks.length === 0 ? (
+        {/* Mobile View: Cards */}
+        <div className={`${tableViewMode === 'cards' ? 'block md:hidden' : 'hidden'} space-y-2.5 max-h-[540px] overflow-y-auto pr-0.5`}>
+          {paginatedTasks.length === 0 ? (
             <div className="py-8 text-center text-slate-400 text-xs bg-slate-50 rounded-xl">
               Aucune tâche ne correspond à vos filtres.
             </div>
           ) : (
-            tasks.map((t) => (
+            paginatedTasks.map((t) => (
               <div
                 key={t.id}
                 onClick={() => onConsultTask(t)}
                 className="bg-slate-50/80 hover:bg-blue-50/60 active:bg-blue-100/50 border border-slate-200 rounded-2xl p-3.5 transition cursor-pointer shadow-xs space-y-2"
               >
-                {/* Card Top: Client & State */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <h4 className="text-xs font-bold text-slate-900 truncate">
@@ -579,12 +668,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                   </span>
                 </div>
 
-                {/* Card Middle: Title */}
                 <p className="text-xs font-semibold text-slate-800 line-clamp-2 leading-relaxed">
                   {t.titre}
                 </p>
 
-                {/* Card Bottom: Metadata & Action */}
                 <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-1">
                   <div className="flex items-center gap-3">
                     {t.chef && (
@@ -610,35 +697,34 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           )}
         </div>
 
-        {/* Desktop View & Mobile Table Toggle */}
-        <div className={`${tableViewMode === 'table' ? 'block' : 'hidden md:block'} overflow-x-auto max-h-[460px]`}>
+        {/* Desktop View & Mobile Table */}
+        <div className={`${tableViewMode === 'table' ? 'block' : 'hidden md:block'} overflow-x-auto max-h-[480px]`}>
           <table className="w-full text-xs text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500 bg-slate-50 sticky top-0 z-10">
-                <th className="py-2 px-2.5 font-semibold text-center">Fiche</th>
-                <th className="py-2 px-2.5 font-semibold">ID</th>
-                <th className="py-2 px-2.5 font-semibold">Code</th>
-                <th className="py-2 px-3 font-semibold">Client</th>
-                <th className="py-2 px-2.5 font-semibold">Chef de zone</th>
-                <th className="py-2 px-2.5 font-semibold">Délégation</th>
-                <th className="py-2 px-2.5 font-semibold">Représentant</th>
-                <th className="py-2 px-3 font-semibold">Tâche</th>
-                <th className="py-2 px-2.5 font-semibold">Échéance</th>
-                <th className="py-2 px-2.5 font-semibold">État</th>
-                <th className="py-2 px-2.5 font-semibold">Réalisée le</th>
-                <th className="py-2 px-2.5 font-semibold">Par</th>
-                <th className="py-2 px-2.5 font-semibold">Demandeur</th>
+                <th className="py-2.5 px-2.5 font-semibold text-center">Fiche</th>
+                <th className="py-2.5 px-2.5 font-semibold">ID</th>
+                <th className="py-2.5 px-2.5 font-semibold">Code</th>
+                <th className="py-2.5 px-3 font-semibold">Client</th>
+                <th className="py-2.5 px-2.5 font-semibold">Chef de zone</th>
+                <th className="py-2.5 px-2.5 font-semibold">Délégation</th>
+                <th className="py-2.5 px-2.5 font-semibold">Représentant</th>
+                <th className="py-2.5 px-3 font-semibold">Tâche</th>
+                <th className="py-2.5 px-2.5 font-semibold">Échéance</th>
+                <th className="py-2.5 px-2.5 font-semibold">État</th>
+                <th className="py-2.5 px-2.5 font-semibold">Réalisée le</th>
+                <th className="py-2.5 px-2.5 font-semibold">Par</th>
+                <th className="py-2.5 px-2.5 font-semibold">Demandeur</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {tasks.map((t) => (
+              {paginatedTasks.map((t) => (
                 <tr
                   key={t.id}
                   onClick={() => onConsultTask(t)}
                   title="Cliquer pour consulter la fiche de la tâche"
                   className="hover:bg-blue-50/60 cursor-pointer transition"
                 >
-                  {/* Consultation button */}
                   <td className="py-2 px-2.5 whitespace-nowrap text-center" onClick={(e) => { e.stopPropagation(); onConsultTask(t); }}>
                     <button
                       type="button"
@@ -681,6 +767,59 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Barre de pagination fluide */}
+        {totalPages > 1 && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2 text-xs">
+            <span className="text-slate-500 font-medium">
+              Page <strong>{safePage}</strong> sur <strong>{totalPages}</strong> ({((safePage - 1) * pageSize) + 1} à {Math.min(safePage * pageSize, tasks.length)} sur {tasks.length.toLocaleString('fr-FR')})
+            </span>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(1)}
+                disabled={safePage === 1}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                title="Première page"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Précédent</span>
+              </button>
+
+              <span className="px-3 py-1 font-mono font-bold text-blue-700 bg-blue-50 rounded-lg border border-blue-200">
+                {safePage} / {totalPages}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+              >
+                <span>Suivant</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={safePage >= totalPages}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer"
+                title="Dernière page"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
