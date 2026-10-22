@@ -3,14 +3,14 @@ import {
   Download,
   RefreshCw,
   FileSpreadsheet,
-  Eye,
   Mic,
   Smartphone,
   LayoutGrid,
   TrendingUp,
   Snowflake,
   MoreVertical,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,6 +24,8 @@ interface NavbarProps {
   onOpenInstallModal?: () => void;
   isAutonome: boolean;
   isRefreshing?: boolean;
+  hasUpdate?: boolean;
+  onApplyUpdate?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,7 +38,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenVoiceModal,
   onOpenInstallModal,
   isAutonome,
-  isRefreshing
+  isRefreshing,
+  hasUpdate,
+  onApplyUpdate
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -100,7 +104,25 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Actions: Desktop full / Mobile compact */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Assistant Vocal Button - Always visible & prominent */}
+            {/* Icône animée / Bouton lumineux de Mise à jour disponible */}
+            {hasUpdate && onApplyUpdate && (
+              <button
+                type="button"
+                onClick={onApplyUpdate}
+                title="Une nouvelle version est disponible ! Cliquez pour mettre à jour."
+                className="relative flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 rounded-xl shadow-md shadow-emerald-500/30 transition cursor-pointer border border-emerald-300 ring-2 ring-emerald-400/60 animate-pulse group"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+                </span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-spin" style={{ animationDuration: '3s' }} />
+                <span className="hidden xs:inline">Version dispo !</span>
+                <span className="xs:hidden">MàJ</span>
+              </button>
+            )}
+
+            {/* Assistant Vocal Button */}
             <button
               onClick={onOpenVoiceModal}
               title="Assistant Vocal & Filtrage Derja (Etkallem maa l'assistant)"
@@ -168,7 +190,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mobile secondary tabs bar (below brand on mobile phones) */}
+        {/* Mobile secondary tabs bar */}
         <div className="md:hidden mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('pOverview')}
@@ -205,6 +227,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Mobile dropdown menu for secondary options */}
         {isMobileMenuOpen && (
           <div className="lg:hidden mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-in fade-in duration-150">
+            {hasUpdate && onApplyUpdate && (
+              <button
+                onClick={() => {
+                  onApplyUpdate();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-300 transition cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 animate-spin" />
+                <span>Mettre à jour l'application (Nouvelle version)</span>
+              </button>
+            )}
+
             {onOpenInstallModal && (
               <button
                 onClick={() => {
@@ -243,7 +278,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </header>
 
-      {/* Fixed Bottom Navigation Bar on Mobile (Ergonomic Thumb Zone) */}
+      {/* Fixed Bottom Navigation Bar on Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-lg px-2 py-1.5 pb-safe flex items-center justify-around">
         <button
           onClick={() => setActiveTab('pOverview')}
@@ -281,15 +316,28 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="text-[10px] mt-0.5">Frigos</span>
         </button>
 
-        <button
-          onClick={onOpenVoiceModal}
-          className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-blue-700 font-bold transition cursor-pointer group"
-        >
-          <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-            <Mic className="w-3.5 h-3.5 animate-pulse" />
-          </div>
-          <span className="text-[10px] mt-0.5 text-blue-700 font-bold">Assistant</span>
-        </button>
+        {/* Si mise à jour disponible : bouton MàJ lumineux en bas aussi */}
+        {hasUpdate && onApplyUpdate ? (
+          <button
+            onClick={onApplyUpdate}
+            className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-emerald-700 font-bold transition cursor-pointer animate-pulse"
+          >
+            <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 animate-spin" />
+            </div>
+            <span className="text-[10px] mt-0.5 text-emerald-700 font-extrabold">MàJ !</span>
+          </button>
+        ) : (
+          <button
+            onClick={onOpenVoiceModal}
+            className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-blue-700 font-bold transition cursor-pointer group"
+          >
+            <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+              <Mic className="w-3.5 h-3.5 animate-pulse" />
+            </div>
+            <span className="text-[10px] mt-0.5 text-blue-700 font-bold">Assistant</span>
+          </button>
+        )}
       </nav>
     </>
   );

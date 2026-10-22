@@ -15,6 +15,8 @@ import { PWAInstallModal } from './components/PWAInstallModal';
 import { VoiceParsedResult } from './services/voiceParser';
 import { exportTasksExcel, exportRealisationExcel, exportFrigosExcel } from './services/exportService';
 import { storageService } from './services/storageService';
+import { useAppUpdate } from './hooks/useAppUpdate';
+import { UpdateNotificationBanner } from './components/UpdateNotificationBanner';
 
 const SANS_CHEF = '— Non rattaché —';
 
@@ -55,6 +57,7 @@ function computeTaskFields(rawTasks: TaskItem[]): TaskItem[] {
 }
 
 export default function App() {
+  const { hasUpdate, applyUpdate, dismissUpdate } = useAppUpdate();
   const [activeTab, setActiveTab] = useState<'pOverview' | 'pMonth' | 'pFrigos'>('pOverview');
 
   // Datasets loaded from memory / demo, then hydrated from IndexedDB
@@ -546,6 +549,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#E8EEF7] text-[#14213D] font-sans antialiased p-2.5 sm:p-5 pb-24 md:pb-8">
+      {/* Bannière lumineuse de mise à jour si une nouvelle version est prête */}
+      <UpdateNotificationBanner
+        hasUpdate={hasUpdate}
+        onApplyUpdate={applyUpdate}
+        onDismiss={dismissUpdate}
+      />
+
       <div className="max-w-[1600px] mx-auto">
         {/* Navbar */}
         <Navbar
@@ -559,6 +569,8 @@ export default function App() {
           onOpenInstallModal={() => setIsInstallModalOpen(true)}
           isAutonome={true}
           isRefreshing={isSyncingDrive}
+          hasUpdate={hasUpdate}
+          onApplyUpdate={applyUpdate}
         />
 
         {/* Sync feedback notification */}
