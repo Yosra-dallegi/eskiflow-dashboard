@@ -309,8 +309,7 @@ export function parseVoiceQuery(
 /**
  * Synthétiseur vocal avec détection automatique de langue (arabe ou français)
  */
-export const speakDerjaConfirmation = (text: string) => speakConfirmation(text, 'fr-FR');
-export { speakConfirmation };
+export function speakConfirmation(text: string, lang: 'fr-FR' | 'ar-TN' = 'fr-FR') {
   try {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
@@ -331,6 +330,8 @@ export { speakConfirmation };
     // ignore
   }
 }
+
+export const speakDerjaConfirmation = (text: string) => speakConfirmation(text, 'fr-FR');
 
 /**
  * Rétroaction sonore douce et instantanée (Web Audio API)
