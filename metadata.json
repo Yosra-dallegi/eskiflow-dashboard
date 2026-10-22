@@ -1,0 +1,7 @@
+{
+  "name": "Apps Script & HTML Web App Converter",
+  "description": "Transformez vos scripts Google Apps Script (.gs) et pages HTML en applications web modernes React et interactives.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
