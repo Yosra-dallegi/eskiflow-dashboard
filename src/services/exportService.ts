@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { TaskItem, RealisationData, FrigoItem } from '../types/task';
+import { TaskItem, RealisationData, FrigoItem, VisiteItem } from '../types/task';
 
 const fr = (s?: string) => s ? s.split('-').reverse().join('/') : '';
 const pct = (a: number, b: number) => b ? Math.round((a * 100) / b) : 0;
@@ -163,3 +163,63 @@ export function exportFrigosExcel(frigoList: FrigoItem[]) {
   const z = (n: number) => ('0' + n).slice(-2);
   XLSX.writeFile(wb, `Frigos_${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}.xlsx`);
 }
+
+export function exportVisitesExcel(visitesList: VisiteItem[]) {
+  if (!visitesList.length) {
+    alert('Aucune visite à exporter avec les filtres actuels.');
+    return;
+  }
+
+  const detail = visitesList.map((v) => ({
+    'ID Visite': v.id,
+    'Date Visite': fr(v.date),
+    'Code Client': v.codeClient,
+    'Nom Client': v.clientNom,
+    'Activité': v.activite || '',
+    'Téléphone / GSM': v.gsm || '',
+    'Statut GPS': v.statutGps,
+    'Pointage Coordonnées': v.positionRaw,
+    'Latitude': v.lat != null ? v.lat : '',
+    'Longitude': v.lng != null ? v.lng : '',
+    'Visiteur (Nom)': v.visiteurNom,
+    'Visiteur (Email)': v.visiteurEmail,
+    'Rôle': v.role || '',
+    'Chef de Zone': v.cdzNom || ''
+  }));
+
+  // Aggregation by Visiteur
+  const aggVisiteur: Record<string, { total: number; surSite: number; horsZone: number }> = {};
+  visitesList.forEach((v) => {
+    const k = v.visiteurNom || v.visiteurEmail || 'Inconnu';
+    if (!aggVisiteur[k]) aggVisiteur[k] = { total: 0, surSite: 0, horsZone: 0 };
+    aggVisiteur[k].total++;
+    if (v.statutGps === 'Sur site') aggVisiteur[k].surSite++;
+    else aggVisiteur[k].horsZone++;
+  });
+
+  const repParVisiteur = Object.keys(aggVisiteur)
+    .sort((a, b) => aggVisiteur[b].total - aggVisiteur[a].total)
+    .map((k) => ({
+      'Visiteur': k,
+      'Total Visites': aggVisiteur[k].total,
+      'Sur site': aggVisiteur[k].surSite,
+      'Hors zone': aggVisiteur[k].horsZone,
+      'Taux Respect GPS (%)': pct(aggVisiteur[k].surSite, aggVisiteur[k].total)
+    }));
+
+  const wb = XLSX.utils.book_new();
+  const wsDetail = XLSX.utils.json_to_sheet(detail);
+  wsDetail['!cols'] = Object.keys(detail[0]).map((k) => ({ wch: Math.max(14, k.length + 2) }));
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Visites');
+
+  if (repParVisiteur.length > 0) {
+    const wsAgg = XLSX.utils.json_to_sheet(repParVisiteur);
+    wsAgg['!cols'] = Object.keys(repParVisiteur[0]).map((k) => ({ wch: Math.max(14, k.length + 2) }));
+    XLSX.utils.book_append_sheet(wb, wsAgg, 'Synthèse par Visiteur');
+  }
+
+  const d = new Date();
+  const z = (n: number) => ('0' + n).slice(-2);
+  XLSX.writeFile(wb, `Visites_Clients_${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}.xlsx`);
+}
+

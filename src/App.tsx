@@ -1,19 +1,22 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Mic, SlidersHorizontal, ChevronDown, Filter } from 'lucide-react';
-import { TaskItem, RealisationData, FrigoData } from './types/task';
+import { TaskItem, RealisationData, FrigoData, VisiteItem } from './types/task';
 import { INITIAL_TASKS, INITIAL_REALISATION, INITIAL_FRIGOS } from './data/mockData';
+import { INITIAL_VISITES } from './data/visitesData';
+import { CDZ_LIST } from './data/cdzHierarchy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { OverviewTab } from './components/OverviewTab';
 import { RealisationTab } from './components/RealisationTab';
 import { FrigosTab } from './components/FrigosTab';
+import { VisitesTab } from './components/VisitesTab';
 import { TaskModal } from './components/TaskModal';
 import { ExcelSyncModal } from './components/ExcelSyncModal';
 import { VoiceFilterModal } from './components/VoiceFilterModal';
 import { VoiceFilterBanner } from './components/VoiceFilterBanner';
 import { PWAInstallModal } from './components/PWAInstallModal';
 import { VoiceParsedResult } from './services/voiceParser';
-import { exportTasksExcel, exportRealisationExcel, exportFrigosExcel } from './services/exportService';
+import { exportTasksExcel, exportRealisationExcel, exportFrigosExcel, exportVisitesExcel } from './services/exportService';
 import { storageService } from './services/storageService';
 import { useAppUpdate } from './hooks/useAppUpdate';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner';
@@ -58,12 +61,31 @@ function computeTaskFields(rawTasks: TaskItem[]): TaskItem[] {
 
 export default function App() {
   const { hasUpdate, applyUpdate, dismissUpdate } = useAppUpdate();
-  const [activeTab, setActiveTab] = useState<'pOverview' | 'pMonth' | 'pFrigos'>('pOverview');
+  const [activeTab, setActiveTab] = useState<'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites'>('pOverview');
 
   // Datasets loaded from memory / demo, then hydrated from IndexedDB
   const [tasks, setTasks] = useState<TaskItem[]>(() => computeTaskFields(INITIAL_TASKS));
   const [realisation, setRealisation] = useState<RealisationData>(INITIAL_REALISATION);
   const [frigoData, setFrigoData] = useState<FrigoData>(INITIAL_FRIGOS);
+  const [visites, setVisites] = useState<VisiteItem[]>(INITIAL_VISITES);
+
+  // Mode d'accès : 'MANAGER' (tout voir) ou email d'un CDZ (voir son équipe)
+  const [accessMode, setAccessMode] = useState<string>(() => storageService.loadAccessMode() || 'MANAGER');
+
+  const handleAccessModeChange = (mode: string) => {
+    setAccessMode(mode);
+    storageService.saveAccessMode(mode);
+    if (mode !== 'MANAGER') {
+      const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === mode.toLowerCase());
+      if (cdz) {
+        setFilterChef(cdz.name);
+        setZChef(cdz.name);
+      }
+    } else {
+      setFilterChef('');
+      setZChef('');
+    }
+  };
 
   const [lastMaj, setLastMaj] = useState<string>(() => {
     return storageService.loadLastMaj() || '20/10/2026 18:15';
@@ -91,6 +113,11 @@ export default function App() {
         if (savedFrigos && savedFrigos.frigos && savedFrigos.frigos.length > 20) {
           setFrigoData(savedFrigos);
           hasFrigos = true;
+        }
+
+        const savedVisites = await storageService.loadVisites();
+        if (savedVisites && savedVisites.length > 0) {
+          setVisites(savedVisites);
         }
 
         const maj = storageService.loadLastMaj();
@@ -510,6 +537,8 @@ export default function App() {
   const handleExport = () => {
     if (activeTab === 'pOverview') {
       exportTasksExcel(filteredTasks);
+    } else if (activeTab === 'pVisites') {
+      exportVisitesExcel(visites);
     } else if (activeTab === 'pMonth') {
       const q = rSearch.trim().toLowerCase();
       const base = realisation.rows.filter((r) => {
@@ -561,6 +590,8 @@ export default function App() {
         <Navbar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
+          accessMode={accessMode}
+          onAccessModeChange={handleAccessModeChange}
           lastMaj={lastMaj}
           onRefresh={handleRefresh}
           onExport={handleExport}
@@ -798,6 +829,13 @@ export default function App() {
                 zAction={zAction}
                 onUpdateFrigos={handleUpdateFrigosFromExcel}
                 onOpenExcelSync={() => setIsExcelSyncOpen(true)}
+              />
+            )}
+
+            {activeTab === 'pVisites' && (
+              <VisitesTab
+                visites={visites}
+                accessMode={accessMode}
               />
             )}
           </main>

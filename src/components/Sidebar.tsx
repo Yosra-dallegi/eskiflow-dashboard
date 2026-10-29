@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface SidebarProps {
-  activeTab: 'pOverview' | 'pMonth' | 'pFrigos';
+  activeTab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites';
   // Overview filters
   filterChef: string;
   setFilterChef: (v: string) => void;
@@ -471,6 +471,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             Réinitialiser les filtres
           </button>
+        </div>
+      )}
+
+      {/* Visites Clients Info */}
+      {activeTab === 'pVisites' && (
+        <div className="flex flex-col gap-3">
+          <div className="p-3.5 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-200 dark:border-blue-700 text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
+            <div className="font-bold mb-1 flex items-center gap-1.5">
+              <span>📍 Module Visites</span>
+            </div>
+            Les filtres de statut GPS, de date et de visiteur sont directement intégrés dans l'onglet pour une consultation plein écran et fluide sur la carte.
+          </div>
         </div>
       )}
     </aside>

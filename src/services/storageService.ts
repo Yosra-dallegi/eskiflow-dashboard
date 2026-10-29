@@ -1,4 +1,4 @@
-import { TaskItem, RealisationData, FrigoData } from '../types/task';
+import { TaskItem, RealisationData, FrigoData, VisiteItem } from '../types/task';
 
 // IndexedDB Helper for high-volume data (e.g. 7,122+ frigos, tens of thousands of rows)
 const DB_NAME = 'EskimoPanameDB';
@@ -78,7 +78,9 @@ async function idbClear(): Promise<void> {
 const TASKS_KEY = 'eskimo_paname_tasks';
 const REAL_KEY = 'eskimo_paname_realisation';
 const FRZ_KEY = 'eskimo_paname_frigos';
+const VISITES_KEY = 'eskimo_paname_visites';
 const MAJ_KEY = 'eskimo_paname_last_maj';
+const ACCESS_MODE_KEY = 'eskimo_paname_access_mode';
 
 export const storageService = {
   async saveTasks(tasks: TaskItem[]) {
@@ -103,6 +105,28 @@ export const storageService = {
 
   async loadFrigos(): Promise<FrigoData | null> {
     return await idbGet<FrigoData>(FRZ_KEY);
+  },
+
+  async saveVisites(visites: VisiteItem[]) {
+    await idbSet(VISITES_KEY, visites);
+  },
+
+  async loadVisites(): Promise<VisiteItem[] | null> {
+    return await idbGet<VisiteItem[]>(VISITES_KEY);
+  },
+
+  saveAccessMode(mode: string) {
+    try {
+      localStorage.setItem(ACCESS_MODE_KEY, mode);
+    } catch {}
+  },
+
+  loadAccessMode(): string {
+    try {
+      return localStorage.getItem(ACCESS_MODE_KEY) || 'MANAGER';
+    } catch {
+      return 'MANAGER';
+    }
   },
 
   saveLastMaj(maj: string) {

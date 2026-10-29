@@ -106,3 +106,28 @@ export interface FrigoData {
   note?: string;
   noteCarte?: string;
 }
+
+export interface VisiteItem {
+  id: string;
+  date: string; // YYYY-MM-DD
+  codeClient: string;
+  clientNom: string;
+  activite?: string;
+  gsm?: string;
+  positionRaw: string;
+  statutGps: 'Sur site' | 'Hors zone' | 'Non spécifié';
+  hasCoords: boolean;
+  lat?: number;
+  lng?: number;
+  visiteurEmail: string;
+  visiteurNom: string;
+  cdzEmail?: string;
+  cdzNom?: string;
+  role?: 'CDZ' | 'SUP' | 'PRV' | 'Autre';
+}
+
+export interface VisiteData {
+  visites: VisiteItem[];
+  maj: string;
+}
+

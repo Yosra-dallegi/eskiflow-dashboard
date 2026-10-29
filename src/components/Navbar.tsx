@@ -10,12 +10,17 @@ import {
   Snowflake,
   MoreVertical,
   X,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  Navigation
 } from 'lucide-react';
+import { CDZ_LIST } from '../data/cdzHierarchy';
 
 interface NavbarProps {
-  activeTab: 'pOverview' | 'pMonth' | 'pFrigos';
-  setActiveTab: (tab: 'pOverview' | 'pMonth' | 'pFrigos') => void;
+  activeTab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites';
+  setActiveTab: (tab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites') => void;
+  accessMode: string;
+  onAccessModeChange: (mode: string) => void;
   lastMaj: string;
   onRefresh: () => void;
   onExport: () => void;
@@ -31,6 +36,8 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
+  accessMode,
+  onAccessModeChange,
   lastMaj,
   onRefresh,
   onExport,
@@ -72,7 +79,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60">
             <button
               onClick={() => setActiveTab('pOverview')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 activeTab === 'pOverview'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -81,18 +88,29 @@ export const Navbar: React.FC<NavbarProps> = ({
               Vue d'ensemble
             </button>
             <button
+              onClick={() => setActiveTab('pVisites')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'pVisites'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              Visites Clients
+            </button>
+            <button
               onClick={() => setActiveTab('pMonth')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 activeTab === 'pMonth'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              Réalisation par mois
+              Réalisation
             </button>
             <button
               onClick={() => setActiveTab('pFrigos')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                 activeTab === 'pFrigos'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -100,6 +118,28 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               Suivi Frigos
             </button>
+          </div>
+
+          {/* Access Mode Selector (Manager voir tout vs CDZ voir son équipe) */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1.5 rounded-xl border border-slate-200 transition">
+            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+            <div className="flex flex-col text-left">
+              <span className="text-[10px] uppercase font-bold text-slate-400 leading-none">Périmètre d'accès</span>
+              <select
+                value={accessMode}
+                onChange={(e) => onAccessModeChange(e.target.value)}
+                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="MANAGER">👑 Direction / Manager (Tout voir)</option>
+                <optgroup label="Chefs de Zone (Voir juste leur équipe)">
+                  {CDZ_LIST.map((cdz) => (
+                    <option key={cdz.email} value={cdz.email}>
+                      👤 CDZ : {cdz.name} ({cdz.teamEmails.length} pers.)
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
           </div>
 
           {/* Actions: Desktop full / Mobile compact */}
@@ -200,7 +240,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
             }`}
           >
-            Vue d'ensemble
+            Tâches
+          </button>
+          <button
+            onClick={() => setActiveTab('pVisites')}
+            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
+              activeTab === 'pVisites'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
+            }`}
+          >
+            Visites
           </button>
           <button
             onClick={() => setActiveTab('pMonth')}
@@ -210,7 +260,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
             }`}
           >
-            Ventes mensuelles
+            Ventes
           </button>
           <button
             onClick={() => setActiveTab('pFrigos')}
@@ -220,8 +270,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
             }`}
           >
-            Suivi Frigos
+            Frigos
           </button>
+        </div>
+
+        {/* Mobile access selector */}
+        <div className="sm:hidden mt-2 pt-2 border-t border-slate-100 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+          <select
+            value={accessMode}
+            onChange={(e) => onAccessModeChange(e.target.value)}
+            className="flex-1 bg-slate-50 border border-slate-200 py-1 px-2 rounded-lg text-xs font-bold text-slate-800 focus:outline-none"
+          >
+            <option value="MANAGER">👑 Manager (Tout voir)</option>
+            {CDZ_LIST.map((cdz) => (
+              <option key={cdz.email} value={cdz.email}>
+                👤 CDZ : {cdz.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Mobile dropdown menu for secondary options */}

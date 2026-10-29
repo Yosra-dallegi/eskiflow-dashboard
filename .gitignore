@@ -10,3 +10,6 @@ coverage/
 server.compiled.js
 .aistudio/
 scripts/
+visite_analysis.txt
+visite_client_info.txt
+/visite_client_sample.xlsx
