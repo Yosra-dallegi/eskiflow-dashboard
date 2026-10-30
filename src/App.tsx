@@ -610,6 +610,11 @@ export default function App() {
           setActiveTab={setActiveTab}
           accessMode={accessMode}
           onAccessModeChange={handleAccessModeChange}
+          allowedModules={
+            accessMode !== 'MANAGER'
+              ? (cdzPermissions[accessMode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[accessMode.toLowerCase()])?.allowedModules
+              : undefined
+          }
           lastMaj={lastMaj}
           onRefresh={handleRefresh}
           onExport={handleExport}

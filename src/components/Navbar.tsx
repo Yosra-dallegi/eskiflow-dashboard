@@ -21,6 +21,7 @@ interface NavbarProps {
   setActiveTab: (tab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites') => void;
   accessMode: string;
   onAccessModeChange: (mode: string) => void;
+  allowedModules?: ('pOverview' | 'pMonth' | 'pFrigos' | 'pVisites')[];
   lastMaj: string;
   onRefresh: () => void;
   onExport: () => void;
@@ -39,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   accessMode,
   onAccessModeChange,
+  allowedModules,
   lastMaj,
   onRefresh,
   onExport,
@@ -79,47 +81,55 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Desktop Tabs */}
           <div className="hidden md:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60">
-            <button
-              onClick={() => setActiveTab('pOverview')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                activeTab === 'pOverview'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              Vue d'ensemble
-            </button>
-            <button
-              onClick={() => setActiveTab('pVisites')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'pVisites'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Navigation className="w-3.5 h-3.5" />
-              Visites Clients
-            </button>
-            <button
-              onClick={() => setActiveTab('pMonth')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                activeTab === 'pMonth'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              Réalisation
-            </button>
-            <button
-              onClick={() => setActiveTab('pFrigos')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                activeTab === 'pFrigos'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              Suivi Frigos
-            </button>
+            {(!allowedModules || allowedModules.includes('pOverview')) && (
+              <button
+                onClick={() => setActiveTab('pOverview')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  activeTab === 'pOverview'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                Vue d'ensemble
+              </button>
+            )}
+            {(!allowedModules || allowedModules.includes('pVisites')) && (
+              <button
+                onClick={() => setActiveTab('pVisites')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'pVisites'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                Visites Clients
+              </button>
+            )}
+            {(!allowedModules || allowedModules.includes('pMonth')) && (
+              <button
+                onClick={() => setActiveTab('pMonth')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  activeTab === 'pMonth'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                Réalisation
+              </button>
+            )}
+            {(!allowedModules || allowedModules.includes('pFrigos')) && (
+              <button
+                onClick={() => setActiveTab('pFrigos')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  activeTab === 'pFrigos'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                Suivi Frigos
+              </button>
+            )}
           </div>
 
           {/* Access Mode Selector (Manager voir tout vs CDZ voir son équipe) */}
@@ -255,46 +265,54 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Mobile secondary tabs bar */}
         <div className="md:hidden mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setActiveTab('pOverview')}
-            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
-              activeTab === 'pOverview'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
-            }`}
-          >
-            Tâches
-          </button>
-          <button
-            onClick={() => setActiveTab('pVisites')}
-            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
-              activeTab === 'pVisites'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
-            }`}
-          >
-            Visites
-          </button>
-          <button
-            onClick={() => setActiveTab('pMonth')}
-            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
-              activeTab === 'pMonth'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
-            }`}
-          >
-            Ventes
-          </button>
-          <button
-            onClick={() => setActiveTab('pFrigos')}
-            className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
-              activeTab === 'pFrigos'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
-            }`}
-          >
-            Frigos
-          </button>
+          {(!allowedModules || allowedModules.includes('pOverview')) && (
+            <button
+              onClick={() => setActiveTab('pOverview')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
+                activeTab === 'pOverview'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
+              }`}
+            >
+              Tâches
+            </button>
+          )}
+          {(!allowedModules || allowedModules.includes('pVisites')) && (
+            <button
+              onClick={() => setActiveTab('pVisites')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
+                activeTab === 'pVisites'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
+              }`}
+            >
+              Visites
+            </button>
+          )}
+          {(!allowedModules || allowedModules.includes('pMonth')) && (
+            <button
+              onClick={() => setActiveTab('pMonth')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
+                activeTab === 'pMonth'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
+              }`}
+            >
+              Ventes
+            </button>
+          )}
+          {(!allowedModules || allowedModules.includes('pFrigos')) && (
+            <button
+              onClick={() => setActiveTab('pFrigos')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold text-center transition truncate cursor-pointer ${
+                activeTab === 'pFrigos'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 bg-slate-50 hover:bg-slate-100'
+              }`}
+            >
+              Frigos
+            </button>
+          )}
         </div>
 
         {/* Mobile access selector */}
