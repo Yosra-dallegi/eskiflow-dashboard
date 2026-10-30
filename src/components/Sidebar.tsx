@@ -1,19 +1,25 @@
 import React from 'react';
+import { MultiSelectFilter } from './MultiSelectFilter';
 
 interface SidebarProps {
   activeTab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites';
-  // Overview filters
-  filterChef: string;
-  setFilterChef: (v: string) => void;
+  
+  // Overview filters (Multi-select)
+  filterChefs: string[];
+  setFilterChefs: (v: string[]) => void;
   uniqueChefs: string[];
-  filterCdr: string;
-  setFilterCdr: (v: string) => void;
+  
+  filterCdrs: string[];
+  setFilterCdrs: (v: string[]) => void;
   uniqueCdrs: string[];
-  filterTitre: string;
-  setFilterTitre: (v: string) => void;
+  
+  filterTitres: string[];
+  setFilterTitres: (v: string[]) => void;
   uniqueTitres: string[];
-  filterEtat: string;
-  setFilterEtat: (v: string) => void;
+  
+  filterEtats: string[];
+  setFilterEtats: (v: string[]) => void;
+  
   filterFid: string;
   setFilterFid: (v: string) => void;
   filterFrom: string;
@@ -28,60 +34,71 @@ interface SidebarProps {
   setFilterSearch: (v: string) => void;
   onResetOverview: () => void;
 
-  // Realisation filters
-  rMois: string;
-  setRMois: (v: string) => void;
+  // Realisation filters (Multi-select)
+  rMoisList: string[];
+  setRMoisList: (v: string[]) => void;
   uniqueMois: { val: number; label: string }[];
-  rPref: string;
-  setRPref: (v: string) => void;
+  
+  rPrefs: string[];
+  setRPrefs: (v: string[]) => void;
   uniquePrefs: string[];
+  
   rSearch: string;
   setRSearch: (v: string) => void;
   onResetReal: () => void;
 
-  // Frigos filters
+  // Frigos filters (Multi-select)
   zSerial: string;
   setZSerial: (v: string) => void;
-  zStatut: string;
-  setZStatut: (v: string) => void;
+  
+  zStatuts: string[];
+  setZStatuts: (v: string[]) => void;
   uniqueFrzStatuts: string[];
-  zAnnee: string;
-  setZAnnee: (v: string) => void;
+  
+  zAnnees: string[];
+  setZAnnees: (v: string[]) => void;
   uniqueFrzAnnees: string[];
-  zContrat: string;
-  setZContrat: (v: string) => void;
+  
+  zContrats: string[];
+  setZContrats: (v: string[]) => void;
   uniqueFrzContrats: string[];
-  zRep: string;
-  setZRep: (v: string) => void;
+  
+  zReps: string[];
+  setZReps: (v: string[]) => void;
   uniqueFrzReps: string[];
-  zSup: string;
-  setZSup: (v: string) => void;
+  
+  zSups: string[];
+  setZSups: (v: string[]) => void;
   uniqueFrzSups: string[];
-  zChef: string;
-  setZChef: (v: string) => void;
+  
+  zChefs: string[];
+  setZChefs: (v: string[]) => void;
   uniqueFrzChefs: string[];
-  zRisque: string;
-  setZRisque: (v: string) => void;
+  
+  zRisques: string[];
+  setZRisques: (v: string[]) => void;
   uniqueFrzRisques: string[];
-  zAction: string;
-  setZAction: (v: string) => void;
+  
+  zActions: string[];
+  setZActions: (v: string[]) => void;
   uniqueFrzActions: string[];
+  
   onResetFrigos: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
-  filterChef,
-  setFilterChef,
+  filterChefs,
+  setFilterChefs,
   uniqueChefs,
-  filterCdr,
-  setFilterCdr,
+  filterCdrs,
+  setFilterCdrs,
   uniqueCdrs,
-  filterTitre,
-  setFilterTitre,
+  filterTitres,
+  setFilterTitres,
   uniqueTitres,
-  filterEtat,
-  setFilterEtat,
+  filterEtats,
+  setFilterEtats,
   filterFid,
   setFilterFid,
   filterFrom,
@@ -96,11 +113,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setFilterSearch,
   onResetOverview,
 
-  rMois,
-  setRMois,
+  rMoisList,
+  setRMoisList,
   uniqueMois,
-  rPref,
-  setRPref,
+  rPrefs,
+  setRPrefs,
   uniquePrefs,
   rSearch,
   setRSearch,
@@ -108,29 +125,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   zSerial,
   setZSerial,
-  zStatut,
-  setZStatut,
+  zStatuts,
+  setZStatuts,
   uniqueFrzStatuts,
-  zAnnee,
-  setZAnnee,
+  zAnnees,
+  setZAnnees,
   uniqueFrzAnnees,
-  zContrat,
-  setZContrat,
+  zContrats,
+  setZContrats,
   uniqueFrzContrats,
-  zRep,
-  setZRep,
+  zReps,
+  setZReps,
   uniqueFrzReps,
-  zSup,
-  setZSup,
+  zSups,
+  setZSups,
   uniqueFrzSups,
-  zChef,
-  setZChef,
+  zChefs,
+  setZChefs,
   uniqueFrzChefs,
-  zRisque,
-  setZRisque,
+  zRisques,
+  setZRisques,
   uniqueFrzRisques,
-  zAction,
-  setZAction,
+  zActions,
+  setZActions,
   uniqueFrzActions,
   onResetFrigos
 }) => {
@@ -139,84 +156,63 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Overview Filters */}
       {activeTab === 'pOverview' && (
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-            Filtres des tâches
-          </h2>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h2 className="text-sm font-bold text-slate-900">
+              Filtres des tâches
+            </h2>
+            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+              Choix multiple
+            </span>
+          </div>
 
+          <MultiSelectFilter
+            label="Chef de zone"
+            placeholder="Tous les chefs autorisés"
+            options={uniqueChefs}
+            selectedValues={filterChefs}
+            onChange={setFilterChefs}
+          />
 
+          <MultiSelectFilter
+            label="Délégation"
+            placeholder="Toutes les délégations"
+            options={uniqueCdrs}
+            selectedValues={filterCdrs}
+            onChange={setFilterCdrs}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Chef de zone</span>
-            <select
-              value={filterChef}
-              onChange={(e) => setFilterChef(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white transition"
-            >
-              <option value="">Tous</option>
-              {uniqueChefs.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Tâche"
+            placeholder="Toutes les tâches"
+            options={uniqueTitres}
+            selectedValues={filterTitres}
+            onChange={setFilterTitres}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Délégation</span>
-            <select
-              value={filterCdr}
-              onChange={(e) => setFilterCdr(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white transition"
-            >
-              <option value="">Tous</option>
-              {uniqueCdrs.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Tâche</span>
-            <select
-              value={filterTitre}
-              onChange={(e) => setFilterTitre(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white transition"
-            >
-              <option value="">Toutes</option>
-              {uniqueTitres.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="État"
+            placeholder="Tous les états"
+            options={['Terminée', 'En attente', 'En retard']}
+            selectedValues={filterEtats}
+            onChange={setFilterEtats}
+          />
 
           <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>État</span>
-            <select
-              value={filterEtat}
-              onChange={(e) => setFilterEtat(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white transition"
-            >
-              <option value="">Tous</option>
-              <option value="Terminée">Terminée</option>
-              <option value="En attente">En attente</option>
-              <option value="En retard">En retard</option>
-            </select>
-          </label>
-
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Inscription FID</span>
+            <span className="font-semibold text-slate-700">Inscription FID</span>
             <select
               value={filterFid}
               onChange={(e) => setFilterFid(e.target.value)}
               className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white transition"
             >
-              <option value="">Tous</option>
-              <option value="oui">Oui</option>
-              <option value="non">Non</option>
+              <option value="">Tous (Inscrits + Non-inscrits)</option>
+              <option value="oui">Oui (Inscrits fidélité)</option>
+              <option value="non">Non (Non inscrits)</option>
             </select>
           </label>
 
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-              <span>Échéance du</span>
+              <span className="font-semibold text-slate-700">Échéance du</span>
               <input
                 type="date"
                 value={filterFrom}
@@ -225,7 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               />
             </label>
             <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-              <span>au</span>
+              <span className="font-semibold text-slate-700">au</span>
               <input
                 type="date"
                 value={filterTo}
@@ -237,7 +233,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-              <span>CA 2026 min</span>
+              <span className="font-semibold text-slate-700">CA 2026 min</span>
               <input
                 type="number"
                 min="0"
@@ -248,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               />
             </label>
             <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-              <span>CA 2026 max</span>
+              <span className="font-semibold text-slate-700">CA 2026 max</span>
               <input
                 type="number"
                 min="0"
@@ -261,7 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Recherche</span>
+            <span className="font-semibold text-slate-700">Recherche</span>
             <input
               type="text"
               placeholder="Code, client, représentant, Ahmed…"
@@ -283,40 +279,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Realisation Filters */}
       {activeTab === 'pMonth' && (
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-            Filtres de réalisation
-          </h2>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h2 className="text-sm font-bold text-slate-900">
+              Filtres de réalisation
+            </h2>
+            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+              Choix multiple
+            </span>
+          </div>
+
+          <MultiSelectFilter
+            label="Mois"
+            placeholder="Tous les mois"
+            options={uniqueMois.map((m) => ({ value: String(m.val), label: m.label }))}
+            selectedValues={rMoisList}
+            onChange={setRMoisList}
+          />
+
+          <MultiSelectFilter
+            label="Type de facture (3 lettres)"
+            placeholder="Tous les types"
+            options={uniquePrefs.map((p) => ({ value: p, label: p === '-' ? '(sans n° de facture)' : p }))}
+            selectedValues={rPrefs}
+            onChange={setRPrefs}
+          />
 
           <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Mois</span>
-            <select
-              value={rMois}
-              onChange={(e) => setRMois(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white transition"
-            >
-              <option value="">Tous les mois</option>
-              {uniqueMois.map((m) => (
-                <option key={m.val} value={String(m.val)}>{m.label}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Type de facture (3 lettres)</span>
-            <select
-              value={rPref}
-              onChange={(e) => setRPref(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white transition"
-            >
-              <option value="">Tous</option>
-              {uniquePrefs.map((p) => (
-                <option key={p} value={p}>{p === '-' ? '(sans n° de facture)' : p}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Recherche client</span>
+            <span className="font-semibold text-slate-700">Recherche client</span>
             <input
               type="text"
               placeholder="Code ou nom…"
@@ -338,12 +327,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Frigos Filters */}
       {activeTab === 'pFrigos' && (
         <div className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-            Filtres frigos
-          </h2>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h2 className="text-sm font-bold text-slate-900">
+              Filtres frigos
+            </h2>
+            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+              Choix multiple
+            </span>
+          </div>
 
           <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>SERIALNUMBER</span>
+            <span className="font-semibold text-slate-700">SERIALNUMBER</span>
             <input
               type="text"
               placeholder="Rechercher un n° de série…"
@@ -353,117 +347,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
             />
           </label>
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Statut FRZ</span>
-            <select
-              value={zStatut}
-              onChange={(e) => setZStatut(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Tous</option>
-              {uniqueFrzStatuts.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Chef de zone"
+            placeholder="Tous les chefs autorisés"
+            options={uniqueFrzChefs}
+            selectedValues={zChefs}
+            onChange={setZChefs}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Année</span>
-            <select
-              value={zAnnee}
-              onChange={(e) => setZAnnee(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Toutes</option>
-              {uniqueFrzAnnees.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Superviseur"
+            placeholder="Tous les superviseurs autorisés"
+            options={uniqueFrzSups}
+            selectedValues={zSups}
+            onChange={setZSups}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Contrat</span>
-            <select
-              value={zContrat}
-              onChange={(e) => setZContrat(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Tous</option>
-              {uniqueFrzContrats.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Représentant"
+            placeholder="Tous les représentants autorisés"
+            options={uniqueFrzReps}
+            selectedValues={zReps}
+            onChange={setZReps}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Représentant</span>
-            <select
-              value={zRep}
-              onChange={(e) => setZRep(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Tous</option>
-              {uniqueFrzReps.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Statut FRZ"
+            placeholder="Tous les statuts"
+            options={uniqueFrzStatuts}
+            selectedValues={zStatuts}
+            onChange={setZStatuts}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Superviseur</span>
-            <select
-              value={zSup}
-              onChange={(e) => setZSup(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Tous</option>
-              {uniqueFrzSups.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Année"
+            placeholder="Toutes les années"
+            options={uniqueFrzAnnees}
+            selectedValues={zAnnees}
+            onChange={setZAnnees}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Chef de zone</span>
-            <select
-              value={zChef}
-              onChange={(e) => setZChef(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Tous</option>
-              {uniqueFrzChefs.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Contrat"
+            placeholder="Tous les contrats"
+            options={uniqueFrzContrats}
+            selectedValues={zContrats}
+            onChange={setZContrats}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Statut risque</span>
-            <select
-              value={zRisque}
-              onChange={(e) => setZRisque(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Tous</option>
-              {uniqueFrzRisques.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Statut risque"
+            placeholder="Tous les risques"
+            options={uniqueFrzRisques}
+            selectedValues={zRisques}
+            onChange={setZRisques}
+          />
 
-          <label className="flex flex-col text-xs font-medium text-slate-500 gap-1">
-            <span>Actions</span>
-            <select
-              value={zAction}
-              onChange={(e) => setZAction(e.target.value)}
-              className="text-xs font-normal text-slate-800 bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-blue-500 focus:bg-white"
-            >
-              <option value="">Toutes</option>
-              {uniqueFrzActions.map((a) => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </label>
+          <MultiSelectFilter
+            label="Actions requises"
+            placeholder="Toutes les actions"
+            options={uniqueFrzActions}
+            selectedValues={zActions}
+            onChange={setZActions}
+          />
 
           <button
             onClick={onResetFrigos}
@@ -471,18 +417,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             Réinitialiser les filtres
           </button>
-        </div>
-      )}
-
-      {/* Visites Clients Info */}
-      {activeTab === 'pVisites' && (
-        <div className="flex flex-col gap-3">
-          <div className="p-3.5 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-200 dark:border-blue-700 text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
-            <div className="font-bold mb-1 flex items-center gap-1.5">
-              <span>📍 Module Visites</span>
-            </div>
-            Les filtres de statut GPS, de date et de visiteur sont directement intégrés dans l'onglet pour une consultation plein écran et fluide sur la carte.
-          </div>
         </div>
       )}
     </aside>

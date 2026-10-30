@@ -3,7 +3,17 @@ import { Mic, SlidersHorizontal, ChevronDown, Filter } from 'lucide-react';
 import { TaskItem, RealisationData, FrigoData, VisiteItem } from './types/task';
 import { INITIAL_TASKS, INITIAL_REALISATION, INITIAL_FRIGOS } from './data/mockData';
 import { INITIAL_VISITES } from './data/visitesData';
-import { CDZ_LIST, CdzPermissions, DEFAULT_CDZ_PERMISSIONS, DEFAULT_MANAGERS, ManagerUser, isModuleAllowed, getAuthorizedTeamEmails } from './data/cdzHierarchy';
+import { 
+  CDZ_LIST, 
+  CdzPermissions, 
+  DEFAULT_CDZ_PERMISSIONS, 
+  DEFAULT_MANAGERS, 
+  ManagerUser, 
+  isModuleAllowed, 
+  getAuthorizedTeamEmails,
+  isUserAuthorized,
+  isRecordAuthorizedForCdz
+} from './data/cdzHierarchy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { OverviewTab } from './components/OverviewTab';
@@ -11,6 +21,7 @@ import { RealisationTab } from './components/RealisationTab';
 import { FrigosTab } from './components/FrigosTab';
 import { VisitesTab } from './components/VisitesTab';
 import { AccessControlModal } from './components/AccessControlModal';
+import { AccessDeniedScreen } from './components/AccessDeniedScreen';
 import { TaskModal } from './components/TaskModal';
 import { ExcelSyncModal } from './components/ExcelSyncModal';
 import { VoiceFilterModal } from './components/VoiceFilterModal';
@@ -85,6 +96,17 @@ export default function App() {
 
   const [isAccessModalOpen, setIsAccessModalOpen] = useState<boolean>(false);
 
+  // Vérification de sécurité formelle : L'email est-il autorisé ?
+  const isManager = useMemo(() => {
+    return accessMode === 'MANAGER' || managersList.some((m) => m.email.toLowerCase() === accessMode.toLowerCase());
+  }, [accessMode, managersList]);
+
+  const isCdz = useMemo(() => {
+    return CDZ_LIST.some((c) => c.email.toLowerCase() === accessMode.toLowerCase());
+  }, [accessMode]);
+
+  const isAuthorized = isManager || isCdz;
+
   const handleSaveCdzPermissions = (updated: Record<string, CdzPermissions>) => {
     setCdzPermissions(updated);
     storageService.saveCdzPermissions(updated);
@@ -102,8 +124,8 @@ export default function App() {
     if (!isMgr) {
       const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === mode.toLowerCase());
       if (cdz) {
-        setFilterChef(cdz.name);
-        setZChef(cdz.name);
+        setFilterChefs([cdz.name]);
+        setZChefs([cdz.name]);
       }
       // Si l'onglet actuel n'est pas autorisé pour ce CDZ, basculer sur son 1er module autorisé
       const perms = cdzPermissions[mode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[mode.toLowerCase()];
@@ -111,8 +133,8 @@ export default function App() {
         setActiveTab(perms.allowedModules[0] || 'pOverview');
       }
     } else {
-      setFilterChef('');
-      setZChef('');
+      setFilterChefs([]);
+      setZChefs([]);
     }
   };
 
@@ -198,11 +220,65 @@ export default function App() {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState<boolean>(false);
   const [activeVoiceFilter, setActiveVoiceFilter] = useState<VoiceParsedResult | null>(null);
 
-  // Overview Filters
-  const [filterChef, setFilterChef] = useState<string>('');
-  const [filterCdr, setFilterCdr] = useState<string>('');
-  const [filterTitre, setFilterTitre] = useState<string>('');
-  const [filterEtat, setFilterEtat] = useState<string>('');
+  // ==========================================
+  // ISOLATION DES DONNÉES PAR ACCÈS (SCOPED DATA)
+  // ==========================================
+  const managerEmails = useMemo(() => managersList.map((m) => m.email), [managersList]);
+
+  // Tâches autorisées pour l'utilisateur connecté
+  const scopedTasks = useMemo(() => {
+    if (isManager) return tasks;
+    return tasks.filter((t) => isRecordAuthorizedForCdz({
+      chefZone: t.chef,
+      superviseur: t.demandeur,
+      realisePar: t.realisePar,
+      repr: t.repr,
+      codeClient: t.code
+    }, accessMode, cdzPermissions, managerEmails));
+  }, [tasks, isManager, accessMode, cdzPermissions, managerEmails]);
+
+  // Frigos autorisés pour l'utilisateur connecté (gère les comptes BIS des superviseurs)
+  const scopedFrigos = useMemo(() => {
+    if (isManager) return frigoData.frigos;
+    return frigoData.frigos.filter((f) => isRecordAuthorizedForCdz({
+      chefZone: f.chefZone,
+      superviseur: f.superviseur,
+      repr: f.nomRep || f.codeRep,
+      codeClient: f.codeClient
+    }, accessMode, cdzPermissions, managerEmails));
+  }, [frigoData.frigos, isManager, accessMode, cdzPermissions, managerEmails]);
+
+  const scopedFrigoData = useMemo(() => ({
+    ...frigoData,
+    frigos: scopedFrigos
+  }), [frigoData, scopedFrigos]);
+
+  // Réalisation Ventes autorisées pour l'utilisateur connecté
+  const scopedRealisation = useMemo(() => {
+    if (isManager) return realisation;
+    const clientSet = new Set<string>();
+    scopedTasks.forEach((t) => { if (t.code) clientSet.add(t.code); });
+    scopedFrigos.forEach((f) => { if (f.codeClient) clientSet.add(f.codeClient); });
+    visites.forEach((v) => {
+      if (isRecordAuthorizedForCdz({ visiteurEmail: v.visiteurEmail, chefZone: v.cdzNom }, accessMode, cdzPermissions, managerEmails)) {
+        if (v.codeClient) clientSet.add(v.codeClient);
+      }
+    });
+    return {
+      ...realisation,
+      rows: realisation.rows.filter((r) => clientSet.has(r[0]))
+    };
+  }, [realisation, isManager, scopedTasks, scopedFrigos, visites, accessMode, cdzPermissions, managerEmails]);
+
+  // ==========================================
+  // ÉTATS DES FILTRES À CHOIX MULTIPLES
+  // ==========================================
+
+  // Overview Filters (Multi-select)
+  const [filterChefs, setFilterChefs] = useState<string[]>([]);
+  const [filterCdrs, setFilterCdrs] = useState<string[]>([]);
+  const [filterTitres, setFilterTitres] = useState<string[]>([]);
+  const [filterEtats, setFilterEtats] = useState<string[]>([]);
   const [filterFid, setFilterFid] = useState<string>('');
   const [filterFrom, setFilterFrom] = useState<string>('');
   const [filterTo, setFilterTo] = useState<string>('');
@@ -210,34 +286,34 @@ export default function App() {
   const [filterCaMax, setFilterCaMax] = useState<string>('');
   const [filterSearch, setFilterSearch] = useState<string>('');
 
-  // Realisation Filters
-  const [rMois, setRMois] = useState<string>('');
-  const [rPref, setRPref] = useState<string>('');
+  // Realisation Filters (Multi-select)
+  const [rMoisList, setRMoisList] = useState<string[]>([]);
+  const [rPrefs, setRPrefs] = useState<string[]>([]);
   const [rSearch, setRSearch] = useState<string>('');
 
-  // Frigos Filters
+  // Frigos Filters (Multi-select)
   const [zSerial, setZSerial] = useState<string>('');
-  const [zStatut, setZStatut] = useState<string>('');
-  const [zAnnee, setZAnnee] = useState<string>('');
-  const [zContrat, setZContrat] = useState<string>('');
-  const [zRep, setZRep] = useState<string>('');
-  const [zSup, setZSup] = useState<string>('');
-  const [zChef, setZChef] = useState<string>('');
-  const [zRisque, setZRisque] = useState<string>('');
-  const [zAction, setZAction] = useState<string>('');
+  const [zStatuts, setZStatuts] = useState<string[]>([]);
+  const [zAnnees, setZAnnees] = useState<string[]>([]);
+  const [zContrats, setZContrats] = useState<string[]>([]);
+  const [zReps, setZReps] = useState<string[]>([]);
+  const [zSups, setZSups] = useState<string[]>([]);
+  const [zChefs, setZChefs] = useState<string[]>([]);
+  const [zRisques, setZRisques] = useState<string[]>([]);
+  const [zActions, setZActions] = useState<string[]>([]);
 
-  // Unique options for Overview filters
+  // Unique options for Overview filters (dérivées UNIQUEMENT des tâches autorisées)
   const uniqueChefs = useMemo(() => {
-    return Array.from(new Set(tasks.map((t) => t.chef).filter(Boolean))).sort();
-  }, [tasks]);
+    return Array.from(new Set(scopedTasks.map((t) => t.chef).filter(Boolean))).sort();
+  }, [scopedTasks]);
 
   const uniqueCdrs = useMemo(() => {
-    return Array.from(new Set(tasks.map((t) => t.cdr).filter(Boolean))).sort();
-  }, [tasks]);
+    return Array.from(new Set(scopedTasks.map((t) => t.cdr).filter(Boolean))).sort();
+  }, [scopedTasks]);
 
   const uniqueTitres = useMemo(() => {
-    return Array.from(new Set(tasks.map((t) => t.titre).filter(Boolean))).sort();
-  }, [tasks]);
+    return Array.from(new Set(scopedTasks.map((t) => t.titre).filter(Boolean))).sort();
+  }, [scopedTasks]);
 
   // Unique options for Realisation
   const MOIS_NAMES = [
@@ -245,37 +321,37 @@ export default function App() {
     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
   ];
   const uniqueMois = useMemo(() => {
-    const rawMois = Array.from(new Set(realisation.rows.map((r) => r[1]))).sort((a, b) => a - b);
+    const rawMois = Array.from(new Set(scopedRealisation.rows.map((r) => r[1]))).sort((a, b) => a - b);
     return rawMois.map((m) => ({
       val: m,
       label: m >= 1 && m <= 12 ? MOIS_NAMES[m - 1] : 'Sans mois'
     }));
-  }, [realisation]);
+  }, [scopedRealisation]);
 
   const uniquePrefs = useMemo(() => {
-    return Array.from(new Set(realisation.rows.map((r) => r[2] || '-'))).sort();
-  }, [realisation]);
+    return Array.from(new Set(scopedRealisation.rows.map((r) => r[2] || '-'))).sort();
+  }, [scopedRealisation]);
 
-  // Unique options for Frigos
+  // Unique options for Frigos (dérivées UNIQUEMENT des frigos autorisés)
   const uniqueFrzProp = (key: keyof typeof frigoData.frigos[0]) => {
     return Array.from(
-      new Set(frigoData.frigos.map((f) => String(f[key] || '').trim()).filter(Boolean))
+      new Set(scopedFrigos.map((f) => String(f[key] || '').trim()).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
   };
 
-  const uniqueFrzStatuts = useMemo(() => uniqueFrzProp('statutFrz'), [frigoData]);
-  const uniqueFrzAnnees = useMemo(() => uniqueFrzProp('annee'), [frigoData]);
-  const uniqueFrzContrats = useMemo(() => uniqueFrzProp('contrat'), [frigoData]);
-  const uniqueFrzReps = useMemo(() => uniqueFrzProp('nomRep'), [frigoData]);
-  const uniqueFrzSups = useMemo(() => uniqueFrzProp('superviseur'), [frigoData]);
-  const uniqueFrzChefs = useMemo(() => uniqueFrzProp('chefZone'), [frigoData]);
-  const uniqueFrzRisques = useMemo(() => uniqueFrzProp('risque'), [frigoData]);
-  const uniqueFrzActions = useMemo(() => uniqueFrzProp('actions'), [frigoData]);
+  const uniqueFrzStatuts = useMemo(() => uniqueFrzProp('statutFrz'), [scopedFrigos]);
+  const uniqueFrzAnnees = useMemo(() => uniqueFrzProp('annee'), [scopedFrigos]);
+  const uniqueFrzContrats = useMemo(() => uniqueFrzProp('contrat'), [scopedFrigos]);
+  const uniqueFrzReps = useMemo(() => uniqueFrzProp('nomRep'), [scopedFrigos]);
+  const uniqueFrzSups = useMemo(() => uniqueFrzProp('superviseur'), [scopedFrigos]);
+  const uniqueFrzChefs = useMemo(() => uniqueFrzProp('chefZone'), [scopedFrigos]);
+  const uniqueFrzRisques = useMemo(() => uniqueFrzProp('risque'), [scopedFrigos]);
+  const uniqueFrzActions = useMemo(() => uniqueFrzProp('actions'), [scopedFrigos]);
 
   // Client references for task creation
   const existingClients = useMemo(() => {
     const map = new Map<string, { code: string; nom: string; chef: string; cdr: string; repr: string; lat: number; lng: number }>();
-    tasks.forEach((t) => {
+    scopedTasks.forEach((t) => {
       if (t.trouve && t.code && !map.has(t.code)) {
         map.set(t.code, {
           code: t.code,
@@ -289,18 +365,18 @@ export default function App() {
       }
     });
     return Array.from(map.values());
-  }, [tasks]);
+  }, [scopedTasks]);
 
-  // Filtered tasks for Overview
+  // Filtered tasks for Overview (avec prise en charge du choix multiple)
   const filteredTasks = useMemo(() => {
     const q = filterSearch.trim().toLowerCase();
     const filtreClient = filterCaMin !== '' || filterCaMax !== '' || filterFid !== '';
 
-    return tasks.filter((t) => {
-      if (filterChef && t.chef !== filterChef) return false;
-      if (filterCdr && t.cdr !== filterCdr) return false;
-      if (filterTitre && t.titre !== filterTitre) return false;
-      if (filterEtat && t.etat !== filterEtat) return false;
+    return scopedTasks.filter((t) => {
+      if (filterChefs.length > 0 && !filterChefs.includes(t.chef)) return false;
+      if (filterCdrs.length > 0 && !filterCdrs.includes(t.cdr)) return false;
+      if (filterTitres.length > 0 && !filterTitres.includes(t.titre)) return false;
+      if (filterEtats.length > 0 && !filterEtats.includes(t.etat || '')) return false;
       if (filterFrom && !(t.echeance && t.echeance >= filterFrom)) return false;
       if (filterTo && !(t.echeance && t.echeance <= filterTo)) return false;
 
@@ -325,11 +401,11 @@ export default function App() {
       return true;
     });
   }, [
-    tasks,
-    filterChef,
-    filterCdr,
-    filterTitre,
-    filterEtat,
+    scopedTasks,
+    filterChefs,
+    filterCdrs,
+    filterTitres,
+    filterEtats,
     filterFid,
     filterFrom,
     filterTo,
@@ -340,10 +416,15 @@ export default function App() {
 
   // Handlers for Reset
   const handleResetOverview = () => {
-    setFilterChef('');
-    setFilterCdr('');
-    setFilterTitre('');
-    setFilterEtat('');
+    if (isManager) {
+      setFilterChefs([]);
+    } else {
+      const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === accessMode.toLowerCase());
+      setFilterChefs(cdz ? [cdz.name] : []);
+    }
+    setFilterCdrs([]);
+    setFilterTitres([]);
+    setFilterEtats([]);
     setFilterFid('');
     setFilterFrom('');
     setFilterTo('');
@@ -362,17 +443,17 @@ export default function App() {
       return;
     }
 
-    if (result.etat !== undefined) {
-      setFilterEtat(result.etat);
+    if (result.etat) {
+      setFilterEtats([result.etat]);
     }
-    if (result.chef !== undefined) {
-      setFilterChef(result.chef);
+    if (result.chef) {
+      setFilterChefs([result.chef]);
     }
-    if (result.cdr !== undefined) {
-      setFilterCdr(result.cdr);
+    if (result.cdr) {
+      setFilterCdrs([result.cdr]);
     }
-    if (result.titre !== undefined) {
-      setFilterTitre(result.titre);
+    if (result.titre) {
+      setFilterTitres([result.titre]);
     }
     if (result.fid !== undefined) {
       setFilterFid(result.fid);
@@ -392,30 +473,35 @@ export default function App() {
   };
 
   const handleResetReal = () => {
-    setRMois('');
-    setRPref('');
+    setRMoisList([]);
+    setRPrefs([]);
     setRSearch('');
   };
 
   const handleResetFrigos = () => {
     setZSerial('');
-    setZStatut('');
-    setZAnnee('');
-    setZContrat('');
-    setZRep('');
-    setZSup('');
-    setZChef('');
-    setZRisque('');
-    setZAction('');
+    setZStatuts([]);
+    setZAnnees([]);
+    setZContrats([]);
+    setZReps([]);
+    setZSups([]);
+    if (isManager) {
+      setZChefs([]);
+    } else {
+      const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === accessMode.toLowerCase());
+      setZChefs(cdz ? [cdz.name] : []);
+    }
+    setZRisques([]);
+    setZActions([]);
   };
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (activeTab === 'pOverview') {
-      if (filterChef) count++;
-      if (filterCdr) count++;
-      if (filterTitre) count++;
-      if (filterEtat) count++;
+      count += filterChefs.length;
+      count += filterCdrs.length;
+      count += filterTitres.length;
+      count += filterEtats.length;
       if (filterFid) count++;
       if (filterFrom) count++;
       if (filterTo) count++;
@@ -423,26 +509,26 @@ export default function App() {
       if (filterCaMax) count++;
       if (filterSearch) count++;
     } else if (activeTab === 'pMonth') {
-      if (rMois) count++;
-      if (rPref) count++;
+      count += rMoisList.length;
+      count += rPrefs.length;
       if (rSearch) count++;
     } else if (activeTab === 'pFrigos') {
       if (zSerial) count++;
-      if (zStatut) count++;
-      if (zAnnee) count++;
-      if (zContrat) count++;
-      if (zRep) count++;
-      if (zSup) count++;
-      if (zChef) count++;
-      if (zRisque) count++;
-      if (zAction) count++;
+      count += zStatuts.length;
+      count += zAnnees.length;
+      count += zContrats.length;
+      count += zReps.length;
+      count += zSups.length;
+      count += zChefs.length;
+      count += zRisques.length;
+      count += zActions.length;
     }
     return count;
   }, [
-    activeTab, filterChef, filterCdr, filterTitre, filterEtat, filterFid,
+    activeTab, filterChefs, filterCdrs, filterTitres, filterEtats, filterFid,
     filterFrom, filterTo, filterCaMin, filterCaMax, filterSearch,
-    rMois, rPref, rSearch,
-    zSerial, zStatut, zAnnee, zContrat, zRep, zSup, zChef, zRisque, zAction
+    rMoisList, rPrefs, rSearch,
+    zSerial, zStatuts, zAnnees, zContrats, zReps, zSups, zChefs, zRisques, zActions
   ]);
 
   // Consultation modal handler
@@ -570,40 +656,53 @@ export default function App() {
       exportVisitesExcel(visites);
     } else if (activeTab === 'pMonth') {
       const q = rSearch.trim().toLowerCase();
-      const base = realisation.rows.filter((r) => {
+      const base = scopedRealisation.rows.filter((r) => {
         const code = r[0];
-        const nom = realisation.noms[code] || '';
+        const nom = scopedRealisation.noms[code] || '';
         const pref = r[2] || '-';
-        if (rPref && pref !== rPref) return false;
+        if (rPrefs.length > 0 && !rPrefs.includes(pref)) return false;
         if (q && !(code + ' ' + nom).toLowerCase().includes(q)) return false;
         return true;
       });
-      const rows = rMois ? base.filter((r) => String(r[1]) === rMois) : base;
+      const rows = rMoisList.length > 0 ? base.filter((r) => rMoisList.includes(String(r[1]))) : base;
       const m: Record<string, number> = {};
       rows.forEach((r) => {
         m[r[0]] = (m[r[0]] || 0) + r[3];
       });
       const rList = Object.keys(m)
-        .map((c) => ({ code: c, nom: realisation.noms[c] || '', ht: m[c] }))
+        .map((c) => ({ code: c, nom: scopedRealisation.noms[c] || '', ht: m[c] }))
         .sort((a, b) => b.ht - a.ht);
       exportRealisationExcel(rList);
     } else if (activeTab === 'pFrigos') {
       const q = zSerial.trim().toLowerCase();
-      const filtered = frigoData.frigos.filter((f) => {
+      const filtered = scopedFrigos.filter((f) => {
         if (q && !String(f.serial).toLowerCase().includes(q)) return false;
-        if (zStatut && f.statutFrz !== zStatut) return false;
-        if (zAnnee && f.annee !== zAnnee) return false;
-        if (zContrat && f.contrat !== zContrat) return false;
-        if (zRep && f.nomRep !== zRep) return false;
-        if (zSup && f.superviseur !== zSup) return false;
-        if (zChef && f.chefZone !== zChef) return false;
-        if (zRisque && f.risque !== zRisque) return false;
-        if (zAction && f.actions !== zAction) return false;
+        if (zStatuts.length > 0 && !zStatuts.includes(f.statutFrz)) return false;
+        if (zAnnees.length > 0 && !zAnnees.includes(f.annee)) return false;
+        if (zContrats.length > 0 && !zContrats.includes(f.contrat)) return false;
+        if (zReps.length > 0 && !zReps.includes(f.nomRep)) return false;
+        if (zSups.length > 0 && !zSups.includes(f.superviseur)) return false;
+        if (zChefs.length > 0 && !zChefs.includes(f.chefZone)) return false;
+        if (zRisques.length > 0 && !zRisques.includes(f.risque)) return false;
+        if (zActions.length > 0 && !zActions.includes(f.actions)) return false;
         return true;
       });
       exportFrigosExcel(filtered);
     }
   };
+
+  // ==========================================
+  // BLOCAGE STRICT SI COMPTE NON AUTORISÉ
+  // ==========================================
+  if (!isAuthorized) {
+    return (
+      <AccessDeniedScreen
+        currentEmail={accessMode}
+        onSwitchEmail={handleAccessModeChange}
+        managersList={managersList}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#E8EEF7] text-[#14213D] font-sans antialiased p-2.5 sm:p-5 pb-24 md:pb-8">
@@ -662,7 +761,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Mobile Filter Toggle Drawer (évite de devoir scroller 15 menus sur smartphone) */}
+        {/* Mobile Filter Toggle Drawer */}
         <div className="lg:hidden mb-3">
           <button
             type="button"
@@ -673,7 +772,7 @@ export default function App() {
               <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                 <SlidersHorizontal className="w-3.5 h-3.5" />
               </div>
-              <span className="font-bold">Filtres de recherche</span>
+              <span className="font-bold">Filtres de recherche (Multi-sélection)</span>
               {activeFiltersCount > 0 && (
                 <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs">
                   {activeFiltersCount} actif{activeFiltersCount > 1 ? 's' : ''}
@@ -690,17 +789,17 @@ export default function App() {
             <div className="mt-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
               <Sidebar
                 activeTab={activeTab}
-                filterChef={filterChef}
-                setFilterChef={setFilterChef}
+                filterChefs={filterChefs}
+                setFilterChefs={setFilterChefs}
                 uniqueChefs={uniqueChefs}
-                filterCdr={filterCdr}
-                setFilterCdr={setFilterCdr}
+                filterCdrs={filterCdrs}
+                setFilterCdrs={setFilterCdrs}
                 uniqueCdrs={uniqueCdrs}
-                filterTitre={filterTitre}
-                setFilterTitre={setFilterTitre}
+                filterTitres={filterTitres}
+                setFilterTitres={setFilterTitres}
                 uniqueTitres={uniqueTitres}
-                filterEtat={filterEtat}
-                setFilterEtat={setFilterEtat}
+                filterEtats={filterEtats}
+                setFilterEtats={setFilterEtats}
                 filterFid={filterFid}
                 setFilterFid={setFilterFid}
                 filterFrom={filterFrom}
@@ -714,40 +813,40 @@ export default function App() {
                 filterSearch={filterSearch}
                 setFilterSearch={setFilterSearch}
                 onResetOverview={handleResetOverview}
-                rMois={rMois}
-                setRMois={setRMois}
+                rMoisList={rMoisList}
+                setRMoisList={setRMoisList}
                 uniqueMois={uniqueMois}
-                rPref={rPref}
-                setRPref={setRPref}
+                rPrefs={rPrefs}
+                setRPrefs={setRPrefs}
                 uniquePrefs={uniquePrefs}
                 rSearch={rSearch}
                 setRSearch={setRSearch}
                 onResetReal={handleResetReal}
                 zSerial={zSerial}
                 setZSerial={setZSerial}
-                zStatut={zStatut}
-                setZStatut={setZStatut}
+                zStatuts={zStatuts}
+                setZStatuts={setZStatuts}
                 uniqueFrzStatuts={uniqueFrzStatuts}
-                zAnnee={zAnnee}
-                setZAnnee={setZAnnee}
+                zAnnees={zAnnees}
+                setZAnnees={setZAnnees}
                 uniqueFrzAnnees={uniqueFrzAnnees}
-                zContrat={zContrat}
-                setZContrat={setZContrat}
+                zContrats={zContrats}
+                setZContrats={setZContrats}
                 uniqueFrzContrats={uniqueFrzContrats}
-                zRep={zRep}
-                setZRep={setZRep}
+                zReps={zReps}
+                setZReps={setZReps}
                 uniqueFrzReps={uniqueFrzReps}
-                zSup={zSup}
-                setZSup={setZSup}
+                zSups={zSups}
+                setZSups={setZSups}
                 uniqueFrzSups={uniqueFrzSups}
-                zChef={zChef}
-                setZChef={setZChef}
+                zChefs={zChefs}
+                setZChefs={setZChefs}
                 uniqueFrzChefs={uniqueFrzChefs}
-                zRisque={zRisque}
-                setZRisque={setZRisque}
+                zRisques={zRisques}
+                setZRisques={setZRisques}
                 uniqueFrzRisques={uniqueFrzRisques}
-                zAction={zAction}
-                setZAction={setZAction}
+                zActions={zActions}
+                setZActions={setZActions}
                 uniqueFrzActions={uniqueFrzActions}
                 onResetFrigos={handleResetFrigos}
               />
@@ -761,17 +860,17 @@ export default function App() {
           <div className="hidden lg:block">
             <Sidebar
               activeTab={activeTab}
-              filterChef={filterChef}
-              setFilterChef={setFilterChef}
+              filterChefs={filterChefs}
+              setFilterChefs={setFilterChefs}
               uniqueChefs={uniqueChefs}
-              filterCdr={filterCdr}
-              setFilterCdr={setFilterCdr}
+              filterCdrs={filterCdrs}
+              setFilterCdrs={setFilterCdrs}
               uniqueCdrs={uniqueCdrs}
-              filterTitre={filterTitre}
-              setFilterTitre={setFilterTitre}
+              filterTitres={filterTitres}
+              setFilterTitres={setFilterTitres}
               uniqueTitres={uniqueTitres}
-              filterEtat={filterEtat}
-              setFilterEtat={setFilterEtat}
+              filterEtats={filterEtats}
+              setFilterEtats={setFilterEtats}
               filterFid={filterFid}
               setFilterFid={setFilterFid}
               filterFrom={filterFrom}
@@ -785,40 +884,40 @@ export default function App() {
               filterSearch={filterSearch}
               setFilterSearch={setFilterSearch}
               onResetOverview={handleResetOverview}
-              rMois={rMois}
-              setRMois={setRMois}
+              rMoisList={rMoisList}
+              setRMoisList={setRMoisList}
               uniqueMois={uniqueMois}
-              rPref={rPref}
-              setRPref={setRPref}
+              rPrefs={rPrefs}
+              setRPrefs={setRPrefs}
               uniquePrefs={uniquePrefs}
               rSearch={rSearch}
               setRSearch={setRSearch}
               onResetReal={handleResetReal}
               zSerial={zSerial}
               setZSerial={setZSerial}
-              zStatut={zStatut}
-              setZStatut={setZStatut}
+              zStatuts={zStatuts}
+              setZStatuts={setZStatuts}
               uniqueFrzStatuts={uniqueFrzStatuts}
-              zAnnee={zAnnee}
-              setZAnnee={setZAnnee}
+              zAnnees={zAnnees}
+              setZAnnees={setZAnnees}
               uniqueFrzAnnees={uniqueFrzAnnees}
-              zContrat={zContrat}
-              setZContrat={setZContrat}
+              zContrats={zContrats}
+              setZContrats={setZContrats}
               uniqueFrzContrats={uniqueFrzContrats}
-              zRep={zRep}
-              setZRep={setZRep}
+              zReps={zReps}
+              setZReps={setZReps}
               uniqueFrzReps={uniqueFrzReps}
-              zSup={zSup}
-              setZSup={setZSup}
+              zSups={zSups}
+              setZSups={setZSups}
               uniqueFrzSups={uniqueFrzSups}
-              zChef={zChef}
-              setZChef={setZChef}
+              zChefs={zChefs}
+              setZChefs={setZChefs}
               uniqueFrzChefs={uniqueFrzChefs}
-              zRisque={zRisque}
-              setZRisque={setZRisque}
+              zRisques={zRisques}
+              setZRisques={setZRisques}
               uniqueFrzRisques={uniqueFrzRisques}
-              zAction={zAction}
-              setZAction={setZAction}
+              zActions={zActions}
+              setZActions={setZActions}
               uniqueFrzActions={uniqueFrzActions}
               onResetFrigos={handleResetFrigos}
             />
@@ -836,7 +935,7 @@ export default function App() {
                 />
                 <OverviewTab
                   tasks={filteredTasks}
-                  allTasksCount={tasks.length}
+                  allTasksCount={scopedTasks.length}
                   onConsultTask={handleConsultTask}
                 />
               </>
@@ -844,25 +943,25 @@ export default function App() {
 
             {activeTab === 'pMonth' && (
               <RealisationTab
-                realisation={realisation}
-                rMois={rMois}
-                rPref={rPref}
+                realisation={scopedRealisation}
+                rMoisList={rMoisList}
+                rPrefs={rPrefs}
                 rSearch={rSearch}
               />
             )}
 
             {activeTab === 'pFrigos' && (
               <FrigosTab
-                frigoData={frigoData}
+                frigoData={scopedFrigoData}
                 zSerial={zSerial}
-                zStatut={zStatut}
-                zAnnee={zAnnee}
-                zContrat={zContrat}
-                zRep={zRep}
-                zSup={zSup}
-                zChef={zChef}
-                zRisque={zRisque}
-                zAction={zAction}
+                zStatuts={zStatuts}
+                zAnnees={zAnnees}
+                zContrats={zContrats}
+                zReps={zReps}
+                zSups={zSups}
+                zChefs={zChefs}
+                zRisques={zRisques}
+                zActions={zActions}
                 onUpdateFrigos={handleUpdateFrigosFromExcel}
                 onOpenExcelSync={() => setIsExcelSyncOpen(true)}
               />
@@ -873,7 +972,7 @@ export default function App() {
                 visites={visites}
                 accessMode={accessMode}
                 customPermissions={cdzPermissions}
-                managerEmails={managersList.map((m) => m.email)}
+                managerEmails={managerEmails}
               />
             )}
           </main>
@@ -896,9 +995,9 @@ export default function App() {
           onUpdateRealisation={handleUpdateRealisationFromExcel}
           onUpdateFrigos={handleUpdateFrigosFromExcel}
           onResetToDemo={handleResetToDemo}
-          currentTasksCount={tasks.length}
-          currentRealisationCount={realisation.rows.length}
-          currentFrigosCount={frigoData.frigos.length}
+          currentTasksCount={scopedTasks.length}
+          currentRealisationCount={scopedRealisation.rows.length}
+          currentFrigosCount={scopedFrigos.length}
         />
 
         {/* Voice Filter Modal */}
@@ -909,7 +1008,7 @@ export default function App() {
           uniqueChefs={uniqueChefs}
           uniqueCdrs={uniqueCdrs}
           uniqueTitres={uniqueTitres}
-          tasks={tasks}
+          tasks={scopedTasks}
         />
 
         {/* PWA / Mobile Install Modal */}

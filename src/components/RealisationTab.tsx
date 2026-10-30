@@ -7,8 +7,10 @@ ChartJS.register(...registerables);
 
 interface RealisationTabProps {
   realisation: RealisationData;
-  rMois: string;
-  rPref: string;
+  rMoisList?: string[];
+  rPrefs?: string[];
+  rMois?: string;
+  rPref?: string;
   rSearch: string;
 }
 
@@ -21,6 +23,8 @@ const fmt3 = (n?: number) => (n || 0).toLocaleString('fr-FR', { minimumFractionD
 
 export const RealisationTab: React.FC<RealisationTabProps> = ({
   realisation,
+  rMoisList,
+  rPrefs,
   rMois,
   rPref,
   rSearch
@@ -36,12 +40,19 @@ export const RealisationTab: React.FC<RealisationTabProps> = ({
       const code = r[0];
       const nom = realisation.noms[code] || '';
       const pref = r[2] || '-';
-      if (rPref && pref !== rPref) return false;
+      if (rPrefs && rPrefs.length > 0) {
+        if (!rPrefs.includes(pref)) return false;
+      } else if (rPref && pref !== rPref) return false;
+
       if (q && !(code + ' ' + nom).toLowerCase().includes(q)) return false;
       return true;
     });
 
-    const filteredRows = rMois ? filteredBase.filter((r) => String(r[1]) === rMois) : filteredBase;
+    const filteredRows = (rMoisList && rMoisList.length > 0)
+      ? filteredBase.filter((r) => rMoisList.includes(String(r[1])))
+      : rMois
+      ? filteredBase.filter((r) => String(r[1]) === rMois)
+      : filteredBase;
 
     const m: Record<string, number> = {};
     for (let i = 0; i < filteredRows.length; i++) {

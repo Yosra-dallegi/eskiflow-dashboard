@@ -13,14 +13,22 @@ ChartJS.register(...registerables);
 interface FrigosTabProps {
   frigoData: FrigoData;
   zSerial: string;
-  zStatut: string;
-  zAnnee: string;
-  zContrat: string;
-  zRep: string;
-  zSup: string;
-  zChef: string;
-  zRisque: string;
-  zAction: string;
+  zStatuts?: string[];
+  zAnnees?: string[];
+  zContrats?: string[];
+  zReps?: string[];
+  zSups?: string[];
+  zChefs?: string[];
+  zRisques?: string[];
+  zActions?: string[];
+  zStatut?: string;
+  zAnnee?: string;
+  zContrat?: string;
+  zRep?: string;
+  zSup?: string;
+  zChef?: string;
+  zRisque?: string;
+  zAction?: string;
   onUpdateFrigos: (data: FrigoData) => void;
   onOpenExcelSync?: () => void;
 }
@@ -38,6 +46,14 @@ const frDate = (s?: any) => {
 export const FrigosTab: React.FC<FrigosTabProps> = ({
   frigoData,
   zSerial,
+  zStatuts,
+  zAnnees,
+  zContrats,
+  zReps,
+  zSups,
+  zChefs,
+  zRisques,
+  zActions,
   zStatut,
   zAnnee,
   zContrat,
@@ -66,14 +82,39 @@ export const FrigosTab: React.FC<FrigosTabProps> = ({
   const q = zSerial.trim().toLowerCase();
   const filteredFrigos = frigoData.frigos.filter((f) => {
     if (q && !String(f.serial).toLowerCase().includes(q)) return false;
-    if (zStatut && f.statutFrz !== zStatut) return false;
-    if (zAnnee && f.annee !== zAnnee) return false;
-    if (zContrat && f.contrat !== zContrat) return false;
-    if (zRep && f.nomRep !== zRep) return false;
-    if (zSup && f.superviseur !== zSup) return false;
-    if (zChef && f.chefZone !== zChef) return false;
-    if (zRisque && f.risque !== zRisque) return false;
-    if (zAction && f.actions !== zAction) return false;
+
+    if (zStatuts && zStatuts.length > 0) {
+      if (!zStatuts.includes(f.statutFrz)) return false;
+    } else if (zStatut && f.statutFrz !== zStatut) return false;
+
+    if (zAnnees && zAnnees.length > 0) {
+      if (!zAnnees.includes(f.annee)) return false;
+    } else if (zAnnee && f.annee !== zAnnee) return false;
+
+    if (zContrats && zContrats.length > 0) {
+      if (!zContrats.includes(f.contrat)) return false;
+    } else if (zContrat && f.contrat !== zContrat) return false;
+
+    if (zReps && zReps.length > 0) {
+      if (!zReps.includes(f.nomRep)) return false;
+    } else if (zRep && f.nomRep !== zRep) return false;
+
+    if (zSups && zSups.length > 0) {
+      if (!zSups.includes(f.superviseur)) return false;
+    } else if (zSup && f.superviseur !== zSup) return false;
+
+    if (zChefs && zChefs.length > 0) {
+      if (!zChefs.includes(f.chefZone)) return false;
+    } else if (zChef && f.chefZone !== zChef) return false;
+
+    if (zRisques && zRisques.length > 0) {
+      if (!zRisques.includes(f.risque)) return false;
+    } else if (zRisque && f.risque !== zRisque) return false;
+
+    if (zActions && zActions.length > 0) {
+      if (!zActions.includes(f.actions)) return false;
+    } else if (zAction && f.actions !== zAction) return false;
+
     return true;
   });
 

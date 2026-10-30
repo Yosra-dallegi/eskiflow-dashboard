@@ -22,6 +22,7 @@ import L from 'leaflet';
 import { VisiteItem } from '../types/task';
 import { exportVisitesExcel } from '../services/exportService';
 import { CDZ_LIST, CdzPermissions, getAuthorizedTeamEmails } from '../data/cdzHierarchy';
+import { MultiSelectFilter } from './MultiSelectFilter';
 
 interface VisitesTabProps {
   visites: VisiteItem[];
@@ -31,9 +32,9 @@ interface VisitesTabProps {
 }
 
 export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, customPermissions, managerEmails }) => {
-  // Filters state
-  const [filterStatutGps, setFilterStatutGps] = useState<string>('');
-  const [filterVisiteur, setFilterVisiteur] = useState<string>('');
+  // Filters state (Multi-select)
+  const [filterStatutGpsList, setFilterStatutGpsList] = useState<string[]>([]);
+  const [filterVisiteurs, setFilterVisiteurs] = useState<string[]>([]);
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -71,8 +72,8 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, cus
   const filteredVisites = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return scopedVisites.filter((v) => {
-      if (filterStatutGps && v.statutGps !== filterStatutGps) return false;
-      if (filterVisiteur && (v.visiteurEmail || '').toLowerCase() !== filterVisiteur.toLowerCase()) return false;
+      if (filterStatutGpsList.length > 0 && !filterStatutGpsList.includes(v.statutGps)) return false;
+      if (filterVisiteurs.length > 0 && !filterVisiteurs.includes((v.visiteurEmail || '').toLowerCase())) return false;
       if (filterDateFrom && v.date && v.date < filterDateFrom) return false;
       if (filterDateTo && v.date && v.date > filterDateTo) return false;
       if (q) {
@@ -84,7 +85,7 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, cus
       }
       return true;
     });
-  }, [scopedVisites, filterStatutGps, filterVisiteur, filterDateFrom, filterDateTo, searchQuery]);
+  }, [scopedVisites, filterStatutGpsList, filterVisiteurs, filterDateFrom, filterDateTo, searchQuery]);
 
   // Unique Visitors for the dropdown (strictly scoped to available team)
   const availableVisitors = useMemo(() => {
@@ -253,8 +254,8 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, cus
   }, [filteredVisites, currentPage, pageSize]);
 
   const handleResetFilters = () => {
-    setFilterStatutGps('');
-    setFilterVisiteur('');
+    setFilterStatutGpsList([]);
+    setFilterVisiteurs([]);
     setFilterDateFrom('');
     setFilterDateTo('');
     setSearchQuery('');
@@ -399,10 +400,10 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, cus
             <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             Filtres des Visites
           </div>
-          {(filterStatutGps || filterVisiteur || filterDateFrom || filterDateTo || searchQuery) && (
+          {(filterStatutGpsList.length > 0 || filterVisiteurs.length > 0 || filterDateFrom || filterDateTo || searchQuery) && (
             <button
               onClick={handleResetFilters}
-              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1 font-medium"
+              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1 font-medium cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Réinitialiser les filtres
@@ -410,49 +411,46 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, cus
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
           {/* Recherche texte */}
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Rechercher client, code, activité..."
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Recherche</span>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Client, code, activité..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Filtre Statut GPS (Multi-select) */}
+          <div>
+            <MultiSelectFilter
+              label="Statut GPS"
+              placeholder="Tous les statuts"
+              options={[
+                { value: 'Sur site', label: '✅ Sur site (Pointage valide)' },
+                { value: 'Hors zone', label: '❌ Hors zone (Écart périmètre)' },
+                { value: 'Non spécifié', label: '⚪ Non spécifié' }
+              ]}
+              selectedValues={filterStatutGpsList}
+              onChange={(vals) => { setFilterStatutGpsList(vals); setCurrentPage(1); }}
             />
           </div>
 
-          {/* Filtre Statut GPS */}
+          {/* Filtre Visiteur (Multi-select restreint à l'équipe autorisée) */}
           <div>
-            <select
-              value={filterStatutGps}
-              onChange={(e) => { setFilterStatutGps(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Tous les statuts GPS</option>
-              <option value="Sur site">✅ Sur site (Pointage valide)</option>
-              <option value="Hors zone">❌ Hors zone (Écart périmètre)</option>
-              <option value="Non spécifié">⚪ Non spécifié</option>
-            </select>
-          </div>
-
-          {/* Filtre Visiteur */}
-          <div>
-            <select
-              value={filterVisiteur}
-              onChange={(e) => { setFilterVisiteur(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">
-                {activeCdzProfile ? `Tous les membres (${activeCdzProfile.name})` : 'Tous les visiteurs'}
-              </option>
-              {availableVisitors.map((vis) => (
-                <option key={vis.email} value={vis.email}>
-                  {vis.nom}
-                </option>
-              ))}
-            </select>
+            <MultiSelectFilter
+              label={activeCdzProfile ? `Équipe CDZ (${activeCdzProfile.name})` : 'Visiteurs autorisés'}
+              placeholder="Tous les visiteurs"
+              options={availableVisitors.map((vis) => ({ value: vis.email, label: vis.nom }))}
+              selectedValues={filterVisiteurs}
+              onChange={(vals) => { setFilterVisiteurs(vals); setCurrentPage(1); }}
+            />
           </div>
 
           {/* Date Début */}
