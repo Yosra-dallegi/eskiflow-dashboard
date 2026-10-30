@@ -144,6 +144,21 @@ export const storageService = {
     }
   },
 
+  saveManagersList(managers: any[]) {
+    try {
+      localStorage.setItem('eskimo_paname_managers_list', JSON.stringify(managers));
+    } catch {}
+  },
+
+  loadManagersList(): any[] | null {
+    try {
+      const data = localStorage.getItem('eskimo_paname_managers_list');
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
   saveLastMaj(maj: string) {
     try {
       localStorage.setItem(MAJ_KEY, maj);

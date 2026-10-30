@@ -25,11 +25,12 @@ import { CDZ_LIST, CdzPermissions, getAuthorizedTeamEmails } from '../data/cdzHi
 
 interface VisitesTabProps {
   visites: VisiteItem[];
-  accessMode: string; // 'MANAGER' ou email du CDZ
+  accessMode: string; // 'MANAGER' ou email
   customPermissions?: Record<string, CdzPermissions>;
+  managerEmails?: string[];
 }
 
-export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, customPermissions }) => {
+export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, customPermissions, managerEmails }) => {
   // Filters state
   const [filterStatutGps, setFilterStatutGps] = useState<string>('');
   const [filterVisiteur, setFilterVisiteur] = useState<string>('');
@@ -57,14 +58,14 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, cus
   // 1. Scoped Visites: restrict to authorized team emails if not Manager
   const scopedVisites = useMemo(() => {
     if (!accessMode || accessMode === 'MANAGER') return visites;
-    const authorized = getAuthorizedTeamEmails(accessMode, customPermissions);
+    const authorized = getAuthorizedTeamEmails(accessMode, customPermissions, managerEmails);
     if (!authorized) return visites;
     const teamSet = new Set(authorized.map((e) => e.toLowerCase()));
     return visites.filter((v) => {
       const email = (v.visiteurEmail || '').toLowerCase();
       return teamSet.has(email);
     });
-  }, [visites, accessMode, customPermissions]);
+  }, [visites, accessMode, customPermissions, managerEmails]);
 
   // 2. Filtered Visites based on user filters
   const filteredVisites = useMemo(() => {

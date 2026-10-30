@@ -14,13 +14,14 @@ import {
   ShieldCheck,
   Navigation
 } from 'lucide-react';
-import { CDZ_LIST } from '../data/cdzHierarchy';
+import { CDZ_LIST, ManagerUser } from '../data/cdzHierarchy';
 
 interface NavbarProps {
   activeTab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites';
   setActiveTab: (tab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites') => void;
   accessMode: string;
   onAccessModeChange: (mode: string) => void;
+  managersList?: ManagerUser[];
   allowedModules?: ('pOverview' | 'pMonth' | 'pFrigos' | 'pVisites')[];
   lastMaj: string;
   onRefresh: () => void;
@@ -40,6 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   accessMode,
   onAccessModeChange,
+  managersList,
   allowedModules,
   lastMaj,
   onRefresh,
@@ -142,7 +144,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onChange={(e) => onAccessModeChange(e.target.value)}
                 className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
               >
-                <option value="MANAGER">👑 Direction / Manager (Tout voir)</option>
+                <optgroup label="👑 Espace Managers (Accès 360° Tout Voir)">
+                  <option value="MANAGER">👑 Tous les Managers (Vue globale)</option>
+                  {(managersList || []).map((mgr) => (
+                    <option key={mgr.email} value={mgr.email}>
+                      👑 {mgr.nom} ({mgr.role})
+                    </option>
+                  ))}
+                </optgroup>
                 <optgroup label="Chefs de Zone (Voir juste leur équipe)">
                   {CDZ_LIST.map((cdz) => (
                     <option key={cdz.email} value={cdz.email}>
@@ -157,7 +166,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={onOpenAccessControl}
                 className="ml-1 p-1 rounded-lg hover:bg-white text-slate-500 hover:text-blue-600 transition cursor-pointer"
-                title="Configurer les permissions par CDZ (modules et collaborateurs)"
+                title="Gérer les accès Managers (Oubaied, etc.) et permissions CDZ"
               >
                 ⚙️
               </button>
@@ -323,12 +332,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             onChange={(e) => onAccessModeChange(e.target.value)}
             className="flex-1 bg-slate-50 border border-slate-200 py-1 px-2 rounded-lg text-xs font-bold text-slate-800 focus:outline-none"
           >
-            <option value="MANAGER">👑 Manager (Tout voir)</option>
-            {CDZ_LIST.map((cdz) => (
-              <option key={cdz.email} value={cdz.email}>
-                👤 CDZ : {cdz.name}
-              </option>
-            ))}
+            <optgroup label="👑 Managers">
+              <option value="MANAGER">👑 Tous les Managers</option>
+              {(managersList || []).map((mgr) => (
+                <option key={mgr.email} value={mgr.email}>
+                  👑 {mgr.nom}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Chefs de Zone">
+              {CDZ_LIST.map((cdz) => (
+                <option key={cdz.email} value={cdz.email}>
+                  👤 CDZ : {cdz.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
           {onOpenAccessControl && (
             <button

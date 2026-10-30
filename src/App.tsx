@@ -3,7 +3,7 @@ import { Mic, SlidersHorizontal, ChevronDown, Filter } from 'lucide-react';
 import { TaskItem, RealisationData, FrigoData, VisiteItem } from './types/task';
 import { INITIAL_TASKS, INITIAL_REALISATION, INITIAL_FRIGOS } from './data/mockData';
 import { INITIAL_VISITES } from './data/visitesData';
-import { CDZ_LIST, CdzPermissions, DEFAULT_CDZ_PERMISSIONS, isModuleAllowed, getAuthorizedTeamEmails } from './data/cdzHierarchy';
+import { CDZ_LIST, CdzPermissions, DEFAULT_CDZ_PERMISSIONS, DEFAULT_MANAGERS, ManagerUser, isModuleAllowed, getAuthorizedTeamEmails } from './data/cdzHierarchy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { OverviewTab } from './components/OverviewTab';
@@ -73,6 +73,11 @@ export default function App() {
   // Mode d'accès : 'MANAGER' (tout voir) ou email d'un CDZ (voir son équipe)
   const [accessMode, setAccessMode] = useState<string>(() => storageService.loadAccessMode() || 'MANAGER');
   
+  // Liste des managers autorisés (Oubaiedallah, Rafik, Yosra...)
+  const [managersList, setManagersList] = useState<ManagerUser[]>(() => {
+    return storageService.loadManagersList() || DEFAULT_MANAGERS;
+  });
+
   // Permissions par CDZ (modules autorisés & collaborateurs visibles)
   const [cdzPermissions, setCdzPermissions] = useState<Record<string, CdzPermissions>>(() => {
     return storageService.loadCdzPermissions() || DEFAULT_CDZ_PERMISSIONS;
@@ -85,10 +90,16 @@ export default function App() {
     storageService.saveCdzPermissions(updated);
   };
 
+  const handleSaveManagersList = (updated: ManagerUser[]) => {
+    setManagersList(updated);
+    storageService.saveManagersList(updated);
+  };
+
   const handleAccessModeChange = (mode: string) => {
     setAccessMode(mode);
     storageService.saveAccessMode(mode);
-    if (mode !== 'MANAGER') {
+    const isMgr = mode === 'MANAGER' || managersList.some((m) => m.email.toLowerCase() === mode.toLowerCase());
+    if (!isMgr) {
       const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === mode.toLowerCase());
       if (cdz) {
         setFilterChef(cdz.name);
@@ -610,8 +621,9 @@ export default function App() {
           setActiveTab={setActiveTab}
           accessMode={accessMode}
           onAccessModeChange={handleAccessModeChange}
+          managersList={managersList}
           allowedModules={
-            accessMode !== 'MANAGER'
+            accessMode !== 'MANAGER' && !managersList.some((m) => m.email.toLowerCase() === accessMode.toLowerCase())
               ? (cdzPermissions[accessMode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[accessMode.toLowerCase()])?.allowedModules
               : undefined
           }
@@ -861,6 +873,7 @@ export default function App() {
                 visites={visites}
                 accessMode={accessMode}
                 customPermissions={cdzPermissions}
+                managerEmails={managersList.map((m) => m.email)}
               />
             )}
           </main>
@@ -913,6 +926,8 @@ export default function App() {
           onSavePermissions={handleSaveCdzPermissions}
           currentAccessMode={accessMode}
           onSelectAccessMode={handleAccessModeChange}
+          managersList={managersList}
+          onSaveManagersList={handleSaveManagersList}
         />
 
         {/* Floating Assistant Vocal Button */}

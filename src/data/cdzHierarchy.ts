@@ -454,15 +454,34 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
   }
 };
 
+export interface ManagerUser {
+  email: string;
+  nom: string;
+  role: string;
+}
+
+export const DEFAULT_MANAGERS: ManagerUser[] = [
+  { email: 'yosra.dallegi@vilavi.tn', nom: 'Yosra Dallegi', role: 'Direction Commerciale' },
+  { email: 'oubaiedallah.woissoissi@vilavi.tn', nom: 'Oubaiedallah Woissoissi', role: 'Manager Commercial' },
+  { email: 'rafik.khefifi@vilavi.tn', nom: 'Rafik Khefifi', role: 'Manager Opérations' }
+];
+
 /**
  * Retourne la liste des emails de l'équipe autorisée selon le mode d'accès et les permissions actives
  */
 export function getAuthorizedTeamEmails(
   accessMode: string,
-  customPermissions?: Record<string, CdzPermissions>
+  customPermissions?: Record<string, CdzPermissions>,
+  managerEmails?: string[]
 ): string[] | null {
   if (!accessMode || accessMode === 'MANAGER') return null;
   const email = accessMode.toLowerCase();
+  
+  // Si l'utilisateur est dans la liste des Managers, il a accès à toutes les données
+  const effectiveManagers = (managerEmails || DEFAULT_MANAGERS.map(m => m.email)).map(e => e.toLowerCase());
+  if (effectiveManagers.includes(email)) {
+    return null; // Accès total
+  }
   
   if (customPermissions && customPermissions[email]) {
     return customPermissions[email].allowedTeamEmails;
@@ -477,15 +496,22 @@ export function getAuthorizedTeamEmails(
 }
 
 /**
- * Vérifie si un module est autorisé pour un CDZ donné
+ * Vérifie si un module est autorisé pour un profil donné
  */
 export function isModuleAllowed(
   moduleKey: ModuleKey,
   accessMode: string,
-  customPermissions?: Record<string, CdzPermissions>
+  customPermissions?: Record<string, CdzPermissions>,
+  managerEmails?: string[]
 ): boolean {
   if (!accessMode || accessMode === 'MANAGER') return true;
   const email = accessMode.toLowerCase();
+  
+  const effectiveManagers = (managerEmails || DEFAULT_MANAGERS.map(m => m.email)).map(e => e.toLowerCase());
+  if (effectiveManagers.includes(email)) {
+    return true; // Managers ont accès à tous les modules
+  }
+
   const perms = (customPermissions && customPermissions[email]) || DEFAULT_CDZ_PERMISSIONS[email];
   if (!perms) return true;
   return perms.allowedModules.includes(moduleKey);
@@ -497,10 +523,11 @@ export function isModuleAllowed(
 export function isVisitorVisible(
   visitorEmail: string, 
   accessMode: string,
-  customPermissions?: Record<string, CdzPermissions>
+  customPermissions?: Record<string, CdzPermissions>,
+  managerEmails?: string[]
 ): boolean {
   if (!accessMode || accessMode === 'MANAGER') return true;
-  const authorized = getAuthorizedTeamEmails(accessMode, customPermissions);
+  const authorized = getAuthorizedTeamEmails(accessMode, customPermissions, managerEmails);
   if (!authorized) return true;
   return authorized.map((e) => e.toLowerCase()).includes(visitorEmail.trim().toLowerCase());
 }
