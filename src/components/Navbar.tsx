@@ -12,7 +12,9 @@ import {
   X,
   Sparkles,
   ShieldCheck,
-  Navigation
+  Navigation,
+  Crown,
+  Lock
 } from 'lucide-react';
 import { CDZ_LIST, ManagerUser } from '../data/cdzHierarchy';
 
@@ -26,7 +28,7 @@ interface NavbarProps {
   lastMaj: string;
   onRefresh: () => void;
   onExport: () => void;
-  onOpenExcelSync: () => void;
+  onOpenExcelSync?: () => void;
   onOpenVoiceModal: () => void;
   onOpenInstallModal?: () => void;
   onOpenAccessControl?: () => void;
@@ -34,6 +36,8 @@ interface NavbarProps {
   isRefreshing?: boolean;
   hasUpdate?: boolean;
   onApplyUpdate?: () => void;
+  isAdmin?: boolean;       // Yosra uniquement : accès panneau admin
+  canExport?: boolean;     // Exporter autorisé pour ce profil
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -53,7 +57,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   isAutonome,
   isRefreshing,
   hasUpdate,
-  onApplyUpdate
+  onApplyUpdate,
+  isAdmin = false,
+  canExport = false
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -68,8 +74,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               ✓
             </div>
             <div className="min-w-0">
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-none truncate">
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 leading-none truncate flex items-center gap-1.5">
                 Suivi des tâches
+                {isAdmin && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full">
+                    <Crown className="w-3 h-3 text-amber-600" />
+                    ADMIN
+                  </span>
+                )}
               </h1>
               <div className="text-[11px] sm:text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
                 <span className="font-medium text-slate-700">Eskimo / Paname</span>
@@ -134,48 +146,68 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Access Mode Selector (Manager voir tout vs CDZ voir son équipe) */}
-          <div className="hidden sm:flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200/80 px-2.5 py-1.5 rounded-xl border border-slate-200 transition">
-            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
-            <div className="flex flex-col text-left">
-              <span className="text-[10px] uppercase font-bold text-slate-400 leading-none">Périmètre d'accès</span>
-              <select
-                value={accessMode}
-                onChange={(e) => onAccessModeChange(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
-              >
-                <optgroup label="👑 Espace Managers (Accès 360° Tout Voir)">
-                  <option value="MANAGER">👑 Tous les Managers (Vue globale)</option>
-                  {(managersList || []).map((mgr) => (
-                    <option key={mgr.email} value={mgr.email}>
-                      👑 {mgr.nom} ({mgr.role})
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Chefs de Zone (Voir juste leur équipe)">
-                  {CDZ_LIST.map((cdz) => (
-                    <option key={cdz.email} value={cdz.email}>
-                      👤 CDZ : {cdz.name} ({cdz.teamEmails.length} pers.)
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
+          {/* Access Mode Selector — affiché uniquement si Admin */}
+          {isAdmin && (
+            <div className="hidden sm:flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100/80 px-2.5 py-1.5 rounded-xl border border-amber-200 transition">
+              <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+              <div className="flex flex-col text-left">
+                <span className="text-[10px] uppercase font-bold text-amber-500 leading-none">Périmètre Admin</span>
+                <select
+                  value={accessMode}
+                  onChange={(e) => onAccessModeChange(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
+                >
+                  <optgroup label="👑 Espace Managers (Accès 360°)">
+                    <option value="MANAGER">👑 Tous les Managers (Vue globale)</option>
+                    {(managersList || []).map((mgr) => (
+                      <option key={mgr.email} value={mgr.email}>
+                        👑 {mgr.nom} ({mgr.role})
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Chefs de Zone (Voir juste leur équipe)">
+                    {CDZ_LIST.map((cdz) => (
+                      <option key={cdz.email} value={cdz.email}>
+                        👤 CDZ : {cdz.name} ({cdz.teamEmails.length} pers.)
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+              {onOpenAccessControl && (
+                <button
+                  type="button"
+                  onClick={onOpenAccessControl}
+                  className="ml-1 p-1 rounded-lg hover:bg-white text-amber-600 hover:text-amber-800 transition cursor-pointer"
+                  title="Gérer les droits, modules et accès (Admin seulement)"
+                >
+                  ⚙️
+                </button>
+              )}
             </div>
-            {onOpenAccessControl && (
-              <button
-                type="button"
-                onClick={onOpenAccessControl}
-                className="ml-1 p-1 rounded-lg hover:bg-white text-slate-500 hover:text-blue-600 transition cursor-pointer"
-                title="Gérer les accès Managers (Oubaied, etc.) et permissions CDZ"
-              >
-                ⚙️
-              </button>
-            )}
-          </div>
+          )}
+
+          {/* Badge profil pour les non-Admin (lecture seule, affichage de qui est connecté) */}
+          {!isAdmin && (
+            <div className="hidden sm:flex items-center gap-1.5 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
+              <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <div className="text-xs font-semibold text-slate-700 truncate max-w-[180px]">
+                {accessMode === 'MANAGER'
+                  ? '👑 Accès Manager'
+                  : (() => {
+                      const mgr = (managersList || []).find((m) => m.email.toLowerCase() === accessMode.toLowerCase());
+                      if (mgr) return `👑 ${mgr.nom}`;
+                      const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === accessMode.toLowerCase());
+                      return cdz ? `👤 CDZ : ${cdz.name}` : accessMode;
+                    })()
+                }
+              </div>
+            </div>
+          )}
 
           {/* Actions: Desktop full / Mobile compact */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Icône animée / Bouton lumineux de Mise à jour disponible */}
+            {/* Icône animée Mise à jour */}
             {hasUpdate && onApplyUpdate && (
               <button
                 type="button"
@@ -193,10 +225,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Assistant Vocal Button */}
+            {/* Assistant Vocal */}
             <button
               onClick={onOpenVoiceModal}
-              title="Assistant Vocal & Filtrage Derja (Etkallem maa l'assistant)"
+              title="Assistant Vocal & Filtrage Derja"
               className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition cursor-pointer shadow-xs group"
             >
               <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 group-hover:scale-110 transition-transform animate-pulse" />
@@ -204,7 +236,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="xs:hidden">Vocal</span>
             </button>
 
-            {/* Quick Refresh icon on mobile */}
+            {/* Refresh */}
             <button
               onClick={onRefresh}
               disabled={isRefreshing}
@@ -219,46 +251,50 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline ml-1.5">{isRefreshing ? 'Actualisation...' : 'Actualiser'}</span>
             </button>
 
-            {/* Desktop Actions */}
+            {/* Desktop Actions — réservées Admin uniquement */}
             <div className="hidden lg:flex items-center gap-2">
-              {onOpenAccessControl && (
+              {isAdmin && onOpenAccessControl && (
                 <button
                   onClick={onOpenAccessControl}
-                  title="Gérer les droits et permissions par Chef de Zone"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition cursor-pointer shadow-xs"
+                  title="Gérer les droits, modules et accès par CDZ/Manager (Admin)"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition cursor-pointer shadow-xs"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Droits CDZ</span>
+                  <Crown className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Gestion Accès</span>
                 </button>
               )}
 
-              {onOpenInstallModal && (
+              {isAdmin && onOpenInstallModal && (
                 <button
                   onClick={onOpenInstallModal}
-                  title="Installer l'application sur smartphone Android / iPhone ou générer APK"
+                  title="Installer l'application sur smartphone"
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition cursor-pointer shadow-xs"
                 >
                   <Smartphone className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Installer Mobile (APK)</span>
+                  <span>Installer Mobile</span>
                 </button>
               )}
 
-              <button
-                onClick={onOpenExcelSync}
-                title="Charger directement vos fichiers Excel (.xlsx) sans Apps Script"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition cursor-pointer shadow-xs"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Données Excel</span>
-              </button>
+              {isAdmin && onOpenExcelSync && (
+                <button
+                  onClick={onOpenExcelSync}
+                  title="Charger directement vos fichiers Excel (.xlsx)"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition cursor-pointer shadow-xs"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Données Excel</span>
+                </button>
+              )}
 
-              <button
-                onClick={onExport}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition cursor-pointer shadow-xs"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
-                <span>Exporter</span>
-              </button>
+              {(isAdmin || canExport) && (
+                <button
+                  onClick={onExport}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition cursor-pointer shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Exporter</span>
+                </button>
+              )}
             </div>
 
             {/* Mobile More Options Button */}
@@ -324,90 +360,91 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Mobile access selector */}
-        <div className="sm:hidden mt-2 pt-2 border-t border-slate-100 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
-          <select
-            value={accessMode}
-            onChange={(e) => onAccessModeChange(e.target.value)}
-            className="flex-1 bg-slate-50 border border-slate-200 py-1 px-2 rounded-lg text-xs font-bold text-slate-800 focus:outline-none"
-          >
-            <optgroup label="👑 Managers">
-              <option value="MANAGER">👑 Tous les Managers</option>
-              {(managersList || []).map((mgr) => (
-                <option key={mgr.email} value={mgr.email}>
-                  👑 {mgr.nom}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Chefs de Zone">
-              {CDZ_LIST.map((cdz) => (
-                <option key={cdz.email} value={cdz.email}>
-                  👤 CDZ : {cdz.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-          {onOpenAccessControl && (
-            <button
-              onClick={onOpenAccessControl}
-              className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-200"
+        {/* Mobile access selector — Admin seulement */}
+        {isAdmin && (
+          <div className="sm:hidden mt-2 pt-2 border-t border-slate-100 flex items-center gap-2">
+            <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+            <select
+              value={accessMode}
+              onChange={(e) => onAccessModeChange(e.target.value)}
+              className="flex-1 bg-amber-50 border border-amber-200 py-1 px-2 rounded-lg text-xs font-bold text-slate-800 focus:outline-none"
             >
-              ⚙️ Droits
-            </button>
-          )}
-        </div>
+              <optgroup label="👑 Managers">
+                <option value="MANAGER">👑 Tous les Managers</option>
+                {(managersList || []).map((mgr) => (
+                  <option key={mgr.email} value={mgr.email}>
+                    👑 {mgr.nom}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Chefs de Zone">
+                {CDZ_LIST.map((cdz) => (
+                  <option key={cdz.email} value={cdz.email}>
+                    👤 CDZ : {cdz.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+            {onOpenAccessControl && (
+              <button
+                onClick={onOpenAccessControl}
+                className="px-2 py-1 bg-amber-50 text-amber-700 text-xs font-bold rounded-lg border border-amber-200"
+              >
+                ⚙️
+              </button>
+            )}
+          </div>
+        )}
 
-        {/* Mobile dropdown menu for secondary options */}
+        {/* Mobile dropdown menu — actions réservées Admin */}
         {isMobileMenuOpen && (
           <div className="lg:hidden mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-in fade-in duration-150">
             {hasUpdate && onApplyUpdate && (
               <button
-                onClick={() => {
-                  onApplyUpdate();
-                  setIsMobileMenuOpen(false);
-                }}
+                onClick={() => { onApplyUpdate(); setIsMobileMenuOpen(false); }}
                 className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-300 transition cursor-pointer"
               >
                 <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 animate-spin" />
-                <span>Mettre à jour l'application (Nouvelle version)</span>
+                <span>Mettre à jour l'application</span>
               </button>
             )}
 
-            {onOpenInstallModal && (
+            {isAdmin && onOpenInstallModal && (
               <button
-                onClick={() => {
-                  onOpenInstallModal();
-                  setIsMobileMenuOpen(false);
-                }}
+                onClick={() => { onOpenInstallModal(); setIsMobileMenuOpen(false); }}
                 className="flex items-center gap-2 p-2.5 rounded-xl bg-indigo-50 text-indigo-800 text-xs font-semibold hover:bg-indigo-100 transition cursor-pointer"
               >
                 <Smartphone className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>Installer sur Smartphone (APK)</span>
+                <span>Installer sur Smartphone</span>
               </button>
             )}
 
-            <button
-              onClick={() => {
-                onOpenExcelSync();
-                setIsMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Charger fichier Excel (.xlsx)</span>
-            </button>
+            {isAdmin && onOpenExcelSync && (
+              <button
+                onClick={() => { onOpenExcelSync!(); setIsMobileMenuOpen(false); }}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-semibold hover:bg-emerald-100 transition cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Charger fichier Excel (.xlsx)</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                onExport();
-                setIsMobileMenuOpen(false);
-              }}
-              className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold hover:bg-slate-200 transition cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-slate-600 shrink-0" />
-              <span>Exporter en Excel</span>
-            </button>
+            {(isAdmin || canExport) && (
+              <button
+                onClick={() => { onExport(); setIsMobileMenuOpen(false); }}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-100 text-slate-800 text-xs font-semibold hover:bg-slate-200 transition cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-slate-600 shrink-0" />
+                <span>Exporter en Excel</span>
+              </button>
+            )}
+
+            {!isAdmin && !canExport && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 text-slate-400 text-xs border border-slate-200">
+                <Lock className="w-4 h-4 shrink-0" />
+                <span>Export et données Excel réservés à l'administrateur</span>
+              </div>
+            )}
           </div>
         )}
       </header>
@@ -450,7 +487,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <span className="text-[10px] mt-0.5">Frigos</span>
         </button>
 
-        {/* Si mise à jour disponible : bouton MàJ lumineux en bas aussi */}
         {hasUpdate && onApplyUpdate ? (
           <button
             onClick={onApplyUpdate}

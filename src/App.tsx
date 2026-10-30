@@ -107,6 +107,12 @@ export default function App() {
 
   const isAuthorized = isManager || isCdz;
 
+  // Admin exclusif : yosra.dallegi@vilavi.tn
+  const ADMIN_EMAIL = 'yosra.dallegi@vilavi.tn';
+  const isAdmin = accessMode.toLowerCase() === ADMIN_EMAIL;
+  // Export réservé à l'admin uniquement
+  const canExport = isAdmin;
+
   const handleSaveCdzPermissions = (updated: Record<string, CdzPermissions>) => {
     setCdzPermissions(updated);
     storageService.saveCdzPermissions(updated);
@@ -729,14 +735,16 @@ export default function App() {
           lastMaj={lastMaj}
           onRefresh={handleRefresh}
           onExport={handleExport}
-          onOpenExcelSync={() => setIsExcelSyncOpen(true)}
+          onOpenExcelSync={isAdmin ? () => setIsExcelSyncOpen(true) : undefined}
           onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
-          onOpenInstallModal={() => setIsInstallModalOpen(true)}
-          onOpenAccessControl={() => setIsAccessModalOpen(true)}
+          onOpenInstallModal={isAdmin ? () => setIsInstallModalOpen(true) : undefined}
+          onOpenAccessControl={isAdmin ? () => setIsAccessModalOpen(true) : undefined}
           isAutonome={true}
           isRefreshing={isSyncingDrive}
           hasUpdate={hasUpdate}
           onApplyUpdate={applyUpdate}
+          isAdmin={isAdmin}
+          canExport={canExport}
         />
 
         {/* Sync feedback notification */}
