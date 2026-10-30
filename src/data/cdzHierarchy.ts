@@ -337,22 +337,170 @@ export const VISITOR_TO_CDZ: Record<string, string> = {
   "anis.kouki@vilavi.tn": "abdelmajid.chouchene@vilavi.tn"
 };
 
+export type ModuleKey = 'pOverview' | 'pVisites' | 'pMonth' | 'pFrigos';
+
+export interface CdzPermissions {
+  allowedModules: ModuleKey[];
+  allowedTeamEmails: string[];
+}
+
+export interface Collaborateur {
+  email: string;
+  nom: string;
+  role: 'CDZ' | 'SUP' | 'PRV' | 'Direction';
+}
+
+export const ALL_COLLABORATORS: Collaborateur[] = [
+  { email: 'mohamed.jouini@vilavi.tn', nom: 'JOUINI MOHAMED', role: 'CDZ' },
+  { email: 'ahmed.trabelsi@vilavi.tn', nom: 'AHMED TRABELSI', role: 'SUP' },
+  { email: 'aymen.amdouni@vilavi.tn', nom: 'AMDOUNI AYMEN', role: 'SUP' },
+  { email: 'dhia.manai@vilavi.tn', nom: 'DHIA MANAI (PRV03)', role: 'PRV' },
+  { email: 'chokri.zghidi@vilavi.tn', nom: 'ZGHIDI CHOKRI', role: 'SUP' },
+  { email: 'issam.saidi@vilavi.tn', nom: 'ISSAM SAIDI', role: 'SUP' },
+  { email: 'sami.mezzi@vilavi.tn', nom: 'SAMI MEZZI', role: 'SUP' },
+  { email: 'seif.ayari@vilavi.tn', nom: 'SAIF AYARI', role: 'SUP' },
+  { email: 'mourad.hasnaoui@vilavi.tn', nom: 'MOURAD HASNAOUI', role: 'CDZ' },
+  { email: 'fahmi.soudani@vilavi.tn', nom: 'SOUDANI FAHMI', role: 'CDZ' },
+  { email: 'wajdi.kalaii@vilavi.tn', nom: 'WAJDI KALAII', role: 'SUP' },
+  { email: 'tarak.boukottaya@vilavi.tn', nom: 'BOUKOTTAYA TAREK', role: 'CDZ' },
+  { email: 'omar.hrichi@vilavi.tn', nom: 'HRICHI OMAR', role: 'SUP' },
+  { email: 'wajih.arwa@vilavi.tn', nom: 'ARWA WAJIH', role: 'SUP' },
+  { email: 'sami.ez@vilavi.tn', nom: 'EZZAR SAMI', role: 'CDZ' },
+  { email: 'maher.ayeb@vilavi.tn', nom: 'Maher Ayeb', role: 'SUP' },
+  { email: 'ahmed.amara@vilavi.tn', nom: 'AMARA MOHAMED AHMED', role: 'SUP' },
+  { email: 'hamza.miled@vilavi.tn', nom: 'hamza Miled', role: 'SUP' },
+  { email: 'debeghi.lotfi@vilavi.tn', nom: 'Dabeghi lotfi', role: 'CDZ' },
+  { email: 'mohamed.rebah@vilavi.tn', nom: 'Rabeh mohamed', role: 'SUP' },
+  { email: 'maher.benmansour@vilavi.tn', nom: 'Ben Mansour Maher (PRV13)', role: 'PRV' },
+  { email: 'abdelmajid.chouchene@vilavi.tn', nom: 'CHOUCHENE ABDELMAJID', role: 'CDZ' },
+  { email: 'anis.kouki@vilavi.tn', nom: 'KOUKI ANIS', role: 'SUP' },
+  { email: 'yosra.dallegi@vilavi.tn', nom: 'Yosra Dallegi', role: 'Direction' },
+  { email: 'rafik.khefifi@vilavi.tn', nom: 'Rafik Khefifi', role: 'SUP' },
+  { email: 'oubaiedallah.woissoissi@vilavi.tn', nom: 'Oubaiedallah Woissoissi', role: 'SUP' }
+];
+
+export const ALL_MODULES: { key: ModuleKey; label: string; desc: string }[] = [
+  { key: 'pOverview', label: "Vue d'ensemble (Tâches)", desc: "Tâches commerciales, réconciliation clients et KPIs" },
+  { key: 'pVisites', label: "Visites Clients (Terrain & GPS)", desc: "Pointages géolocalisés, respect Sur site vs Hors zone" },
+  { key: 'pMonth', label: "Ventes Sell-Out (Réalisation)", desc: "Facturations et chiffre d'affaires mensuel 2026" },
+  { key: 'pFrigos', label: "Parc Frigos (FREEZER_LISTING)", desc: "Scoring risque, carte et conformité des congélateurs" }
+];
+
+export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
+  "mohamed.jouini@vilavi.tn": {
+    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedTeamEmails: [
+      "ahmed.trabelsi@vilavi.tn",
+      "aymen.amdouni@vilavi.tn",
+      "chokri.zghidi@vilavi.tn",
+      "dhia.manai@vilavi.tn",
+      "issam.saidi@vilavi.tn",
+      "mohamed.jouini@vilavi.tn",
+      "sami.mezzi@vilavi.tn",
+      "seif.ayari@vilavi.tn"
+    ]
+  },
+  "mourad.hasnaoui@vilavi.tn": {
+    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedTeamEmails: [
+      "chokri.zghidi@vilavi.tn",
+      "issam.saidi@vilavi.tn",
+      "mourad.hasnaoui@vilavi.tn",
+      "sami.mezzi@vilavi.tn"
+    ]
+  },
+  "fahmi.soudani@vilavi.tn": {
+    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedTeamEmails: [
+      "ahmed.trabelsi@vilavi.tn",
+      "fahmi.soudani@vilavi.tn",
+      "seif.ayari@vilavi.tn",
+      "wajdi.kalaii@vilavi.tn"
+    ]
+  },
+  "tarak.boukottaya@vilavi.tn": {
+    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedTeamEmails: [
+      "omar.hrichi@vilavi.tn",
+      "tarak.boukottaya@vilavi.tn",
+      "wajih.arwa@vilavi.tn"
+    ]
+  },
+  "sami.ez@vilavi.tn": {
+    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedTeamEmails: [
+      "ahmed.amara@vilavi.tn",
+      "hamza.miled@vilavi.tn",
+      "maher.ayeb@vilavi.tn",
+      "sami.ez@vilavi.tn"
+    ]
+  },
+  "debeghi.lotfi@vilavi.tn": {
+    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedTeamEmails: [
+      "debeghi.lotfi@vilavi.tn",
+      "maher.benmansour@vilavi.tn",
+      "mohamed.rebah@vilavi.tn"
+    ]
+  },
+  "abdelmajid.chouchene@vilavi.tn": {
+    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedTeamEmails: [
+      "abdelmajid.chouchene@vilavi.tn",
+      "anis.kouki@vilavi.tn",
+      "aymen.amdouni@vilavi.tn",
+      "wajih.arwa@vilavi.tn"
+    ]
+  }
+};
+
 /**
- * Retourne la liste des emails de l'équipe autorisée selon le mode d'accès
- * @param accessMode 'MANAGER' pour tout voir, ou l'email d'un CDZ
+ * Retourne la liste des emails de l'équipe autorisée selon le mode d'accès et les permissions actives
  */
-export function getAuthorizedTeamEmails(accessMode: string): string[] | null {
-  if (!accessMode || accessMode === 'MANAGER') return null; // Accès complet
-  const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === accessMode.toLowerCase());
-  return cdz ? cdz.teamEmails : [accessMode.toLowerCase()];
+export function getAuthorizedTeamEmails(
+  accessMode: string,
+  customPermissions?: Record<string, CdzPermissions>
+): string[] | null {
+  if (!accessMode || accessMode === 'MANAGER') return null;
+  const email = accessMode.toLowerCase();
+  
+  if (customPermissions && customPermissions[email]) {
+    return customPermissions[email].allowedTeamEmails;
+  }
+  
+  if (DEFAULT_CDZ_PERMISSIONS[email]) {
+    return DEFAULT_CDZ_PERMISSIONS[email].allowedTeamEmails;
+  }
+
+  const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === email);
+  return cdz ? cdz.teamEmails : [email];
+}
+
+/**
+ * Vérifie si un module est autorisé pour un CDZ donné
+ */
+export function isModuleAllowed(
+  moduleKey: ModuleKey,
+  accessMode: string,
+  customPermissions?: Record<string, CdzPermissions>
+): boolean {
+  if (!accessMode || accessMode === 'MANAGER') return true;
+  const email = accessMode.toLowerCase();
+  const perms = (customPermissions && customPermissions[email]) || DEFAULT_CDZ_PERMISSIONS[email];
+  if (!perms) return true;
+  return perms.allowedModules.includes(moduleKey);
 }
 
 /**
  * Vérifie si un visiteur / commercial est visible selon le mode d'accès
  */
-export function isVisitorVisible(visitorEmail: string, accessMode: string): boolean {
+export function isVisitorVisible(
+  visitorEmail: string, 
+  accessMode: string,
+  customPermissions?: Record<string, CdzPermissions>
+): boolean {
   if (!accessMode || accessMode === 'MANAGER') return true;
-  const authorized = getAuthorizedTeamEmails(accessMode);
+  const authorized = getAuthorizedTeamEmails(accessMode, customPermissions);
   if (!authorized) return true;
-  return authorized.includes(visitorEmail.trim().toLowerCase());
+  return authorized.map((e) => e.toLowerCase()).includes(visitorEmail.trim().toLowerCase());
 }

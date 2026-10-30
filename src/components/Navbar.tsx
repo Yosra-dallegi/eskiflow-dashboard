@@ -27,6 +27,7 @@ interface NavbarProps {
   onOpenExcelSync: () => void;
   onOpenVoiceModal: () => void;
   onOpenInstallModal?: () => void;
+  onOpenAccessControl?: () => void;
   isAutonome: boolean;
   isRefreshing?: boolean;
   hasUpdate?: boolean;
@@ -44,6 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenExcelSync,
   onOpenVoiceModal,
   onOpenInstallModal,
+  onOpenAccessControl,
   isAutonome,
   isRefreshing,
   hasUpdate,
@@ -140,6 +142,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </optgroup>
               </select>
             </div>
+            {onOpenAccessControl && (
+              <button
+                type="button"
+                onClick={onOpenAccessControl}
+                className="ml-1 p-1 rounded-lg hover:bg-white text-slate-500 hover:text-blue-600 transition cursor-pointer"
+                title="Configurer les permissions par CDZ (modules et collaborateurs)"
+              >
+                ⚙️
+              </button>
+            )}
           </div>
 
           {/* Actions: Desktop full / Mobile compact */}
@@ -190,6 +202,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Desktop Actions */}
             <div className="hidden lg:flex items-center gap-2">
+              {onOpenAccessControl && (
+                <button
+                  onClick={onOpenAccessControl}
+                  title="Gérer les droits et permissions par Chef de Zone"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition cursor-pointer shadow-xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Droits CDZ</span>
+                </button>
+              )}
+
               {onOpenInstallModal && (
                 <button
                   onClick={onOpenInstallModal}
@@ -289,6 +312,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               </option>
             ))}
           </select>
+          {onOpenAccessControl && (
+            <button
+              onClick={onOpenAccessControl}
+              className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-200"
+            >
+              ⚙️ Droits
+            </button>
+          )}
         </div>
 
         {/* Mobile dropdown menu for secondary options */}

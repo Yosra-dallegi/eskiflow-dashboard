@@ -3,13 +3,14 @@ import { Mic, SlidersHorizontal, ChevronDown, Filter } from 'lucide-react';
 import { TaskItem, RealisationData, FrigoData, VisiteItem } from './types/task';
 import { INITIAL_TASKS, INITIAL_REALISATION, INITIAL_FRIGOS } from './data/mockData';
 import { INITIAL_VISITES } from './data/visitesData';
-import { CDZ_LIST } from './data/cdzHierarchy';
+import { CDZ_LIST, CdzPermissions, DEFAULT_CDZ_PERMISSIONS, isModuleAllowed, getAuthorizedTeamEmails } from './data/cdzHierarchy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { OverviewTab } from './components/OverviewTab';
 import { RealisationTab } from './components/RealisationTab';
 import { FrigosTab } from './components/FrigosTab';
 import { VisitesTab } from './components/VisitesTab';
+import { AccessControlModal } from './components/AccessControlModal';
 import { TaskModal } from './components/TaskModal';
 import { ExcelSyncModal } from './components/ExcelSyncModal';
 import { VoiceFilterModal } from './components/VoiceFilterModal';
@@ -71,6 +72,18 @@ export default function App() {
 
   // Mode d'accès : 'MANAGER' (tout voir) ou email d'un CDZ (voir son équipe)
   const [accessMode, setAccessMode] = useState<string>(() => storageService.loadAccessMode() || 'MANAGER');
+  
+  // Permissions par CDZ (modules autorisés & collaborateurs visibles)
+  const [cdzPermissions, setCdzPermissions] = useState<Record<string, CdzPermissions>>(() => {
+    return storageService.loadCdzPermissions() || DEFAULT_CDZ_PERMISSIONS;
+  });
+
+  const [isAccessModalOpen, setIsAccessModalOpen] = useState<boolean>(false);
+
+  const handleSaveCdzPermissions = (updated: Record<string, CdzPermissions>) => {
+    setCdzPermissions(updated);
+    storageService.saveCdzPermissions(updated);
+  };
 
   const handleAccessModeChange = (mode: string) => {
     setAccessMode(mode);
@@ -80,6 +93,11 @@ export default function App() {
       if (cdz) {
         setFilterChef(cdz.name);
         setZChef(cdz.name);
+      }
+      // Si l'onglet actuel n'est pas autorisé pour ce CDZ, basculer sur son 1er module autorisé
+      const perms = cdzPermissions[mode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[mode.toLowerCase()];
+      if (perms && !perms.allowedModules.includes(activeTab)) {
+        setActiveTab(perms.allowedModules[0] || 'pOverview');
       }
     } else {
       setFilterChef('');
@@ -598,6 +616,7 @@ export default function App() {
           onOpenExcelSync={() => setIsExcelSyncOpen(true)}
           onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
           onOpenInstallModal={() => setIsInstallModalOpen(true)}
+          onOpenAccessControl={() => setIsAccessModalOpen(true)}
           isAutonome={true}
           isRefreshing={isSyncingDrive}
           hasUpdate={hasUpdate}
@@ -836,6 +855,7 @@ export default function App() {
               <VisitesTab
                 visites={visites}
                 accessMode={accessMode}
+                customPermissions={cdzPermissions}
               />
             )}
           </main>
@@ -878,6 +898,16 @@ export default function App() {
         <PWAInstallModal
           isOpen={isInstallModalOpen}
           onClose={() => setIsInstallModalOpen(false)}
+        />
+
+        {/* Modal de Gestion des Accès et Permissions par CDZ */}
+        <AccessControlModal
+          isOpen={isAccessModalOpen}
+          onClose={() => setIsAccessModalOpen(false)}
+          permissions={cdzPermissions}
+          onSavePermissions={handleSaveCdzPermissions}
+          currentAccessMode={accessMode}
+          onSelectAccessMode={handleAccessModeChange}
         />
 
         {/* Floating Assistant Vocal Button */}

@@ -21,14 +21,15 @@ import {
 import L from 'leaflet';
 import { VisiteItem } from '../types/task';
 import { exportVisitesExcel } from '../services/exportService';
-import { CDZ_LIST } from '../data/cdzHierarchy';
+import { CDZ_LIST, CdzPermissions, getAuthorizedTeamEmails } from '../data/cdzHierarchy';
 
 interface VisitesTabProps {
   visites: VisiteItem[];
   accessMode: string; // 'MANAGER' ou email du CDZ
+  customPermissions?: Record<string, CdzPermissions>;
 }
 
-export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode }) => {
+export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, customPermissions }) => {
   // Filters state
   const [filterStatutGps, setFilterStatutGps] = useState<string>('');
   const [filterVisiteur, setFilterVisiteur] = useState<string>('');
@@ -53,15 +54,17 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode }) =
     return CDZ_LIST.find((c) => c.email.toLowerCase() === accessMode.toLowerCase()) || null;
   }, [accessMode]);
 
-  // 1. Scoped Visites: restrict to CDZ team if not Manager
+  // 1. Scoped Visites: restrict to authorized team emails if not Manager
   const scopedVisites = useMemo(() => {
-    if (!activeCdzProfile) return visites;
-    const teamSet = new Set(activeCdzProfile.teamEmails.map((e) => e.toLowerCase()));
+    if (!accessMode || accessMode === 'MANAGER') return visites;
+    const authorized = getAuthorizedTeamEmails(accessMode, customPermissions);
+    if (!authorized) return visites;
+    const teamSet = new Set(authorized.map((e) => e.toLowerCase()));
     return visites.filter((v) => {
       const email = (v.visiteurEmail || '').toLowerCase();
-      return teamSet.has(email) || v.cdzEmail?.toLowerCase() === activeCdzProfile.email.toLowerCase();
+      return teamSet.has(email);
     });
-  }, [visites, activeCdzProfile]);
+  }, [visites, accessMode, customPermissions]);
 
   // 2. Filtered Visites based on user filters
   const filteredVisites = useMemo(() => {

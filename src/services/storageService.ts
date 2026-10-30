@@ -129,6 +129,21 @@ export const storageService = {
     }
   },
 
+  saveCdzPermissions(perms: Record<string, any>) {
+    try {
+      localStorage.setItem('eskimo_paname_cdz_permissions', JSON.stringify(perms));
+    } catch {}
+  },
+
+  loadCdzPermissions(): Record<string, any> | null {
+    try {
+      const data = localStorage.getItem('eskimo_paname_cdz_permissions');
+      return data ? JSON.parse(data) : null;
+    } catch {
+      return null;
+    }
+  },
+
   saveLastMaj(maj: string) {
     try {
       localStorage.setItem(MAJ_KEY, maj);
