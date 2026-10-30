@@ -123,9 +123,12 @@ export const storageService = {
 
   loadAccessMode(): string {
     try {
-      return localStorage.getItem(ACCESS_MODE_KEY) || 'MANAGER';
+      const stored = localStorage.getItem(ACCESS_MODE_KEY);
+      // 'MANAGER' était l'ancienne valeur par défaut : on exige désormais une vraie connexion
+      if (!stored || stored === 'MANAGER') return '';
+      return stored;
     } catch {
-      return 'MANAGER';
+      return '';
     }
   },
 

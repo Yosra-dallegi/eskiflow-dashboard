@@ -468,6 +468,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>Export et données Excel réservés à l'administrateur</span>
               </div>
             )}
+
+            {onLogout && (
+              <button
+                onClick={() => { onLogout(); setIsMobileMenuOpen(false); }}
+                className="flex items-center gap-2 p-2.5 rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Se déconnecter</span>
+              </button>
+            )}
           </div>
         )}
       </header>

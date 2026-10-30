@@ -706,8 +706,22 @@ export default function App() {
     handleAccessModeChange(email);
   };
 
+  // Fonction pour vérifier si un email est connu dans le système
+  const checkIsKnownEmail = (email: string): boolean => {
+    const lower = email.toLowerCase();
+    if (lower === ADMIN_EMAIL) return true;
+    if (managersList.some((m) => m.email.toLowerCase() === lower)) return true;
+    if (CDZ_LIST.some((c) => c.email.toLowerCase() === lower)) return true;
+    return false;
+  };
+
   if (!accessMode) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return (
+      <LoginScreen
+        onLoginSuccess={handleLogin}
+        checkIsKnownEmail={checkIsKnownEmail}
+      />
+    );
   }
 
   // --- ACCÈS REFUSÉ : email inconnu ---
