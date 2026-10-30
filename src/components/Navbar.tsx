@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   Navigation,
   Crown,
-  Lock
+  Lock,
+  LogOut
 } from 'lucide-react';
 import { CDZ_LIST, ManagerUser } from '../data/cdzHierarchy';
 
@@ -32,6 +33,7 @@ interface NavbarProps {
   onOpenVoiceModal: () => void;
   onOpenInstallModal?: () => void;
   onOpenAccessControl?: () => void;
+  onLogout?: () => void;
   isAutonome: boolean;
   isRefreshing?: boolean;
   hasUpdate?: boolean;
@@ -54,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenVoiceModal,
   onOpenInstallModal,
   onOpenAccessControl,
+  onLogout,
   isAutonome,
   isRefreshing,
   hasUpdate,
@@ -184,6 +187,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ⚙️
                 </button>
               )}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  title="Se déconnecter"
+                  className="p-1 rounded-lg hover:bg-white text-amber-500 hover:text-red-600 transition cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           )}
 
@@ -202,6 +215,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                     })()
                 }
               </div>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  title="Se déconnecter"
+                  className="ml-1 p-1 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           )}
 

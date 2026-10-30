@@ -22,6 +22,7 @@ import { FrigosTab } from './components/FrigosTab';
 import { VisitesTab } from './components/VisitesTab';
 import { AccessControlModal } from './components/AccessControlModal';
 import { AccessDeniedScreen } from './components/AccessDeniedScreen';
+import { LoginScreen } from './components/LoginScreen';
 import { TaskModal } from './components/TaskModal';
 import { ExcelSyncModal } from './components/ExcelSyncModal';
 import { VoiceFilterModal } from './components/VoiceFilterModal';
@@ -82,7 +83,7 @@ export default function App() {
   const [visites, setVisites] = useState<VisiteItem[]>(INITIAL_VISITES);
 
   // Mode d'accès : 'MANAGER' (tout voir) ou email d'un CDZ (voir son équipe)
-  const [accessMode, setAccessMode] = useState<string>(() => storageService.loadAccessMode() || 'MANAGER');
+  const [accessMode, setAccessMode] = useState<string>(() => storageService.loadAccessMode() || '');
   
   // Liste des managers autorisés (Oubaiedallah, Rafik, Yosra...)
   const [managersList, setManagersList] = useState<ManagerUser[]>(() => {
@@ -700,11 +701,25 @@ export default function App() {
   // ==========================================
   // BLOCAGE STRICT SI COMPTE NON AUTORISÉ
   // ==========================================
+  // --- ÉCRAN DE LOGIN : si aucun email saisi ---
+  const handleLogin = (email: string) => {
+    handleAccessModeChange(email);
+  };
+
+  if (!accessMode) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  // --- ACCÈS REFUSÉ : email inconnu ---
   if (!isAuthorized) {
     return (
       <AccessDeniedScreen
         currentEmail={accessMode}
-        onSwitchEmail={handleAccessModeChange}
+        onSwitchEmail={() => {
+          // Déconnexion → retour au login
+          storageService.saveAccessMode('');
+          setAccessMode('');
+        }}
         managersList={managersList}
       />
     );
@@ -745,6 +760,10 @@ export default function App() {
           onApplyUpdate={applyUpdate}
           isAdmin={isAdmin}
           canExport={canExport}
+          onLogout={() => {
+            storageService.saveAccessMode('');
+            setAccessMode('');
+          }}
         />
 
         {/* Sync feedback notification */}
