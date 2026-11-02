@@ -136,6 +136,28 @@ export const storageService = {
     try {
       localStorage.setItem('eskimo_paname_cdz_permissions', JSON.stringify(perms));
     } catch {}
+    // Synchronisation serveur
+    try {
+      fetch('/api/auth/cdz-permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissions: perms })
+      }).catch(() => {});
+    } catch {}
+  },
+
+  async fetchCdzPermissions(): Promise<Record<string, any> | null> {
+    try {
+      const res = await fetch('/api/auth/cdz-permissions', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.permissions && typeof data.permissions === 'object') {
+          localStorage.setItem('eskimo_paname_cdz_permissions', JSON.stringify(data.permissions));
+          return data.permissions;
+        }
+      }
+    } catch {}
+    return this.loadCdzPermissions();
   },
 
   loadCdzPermissions(): Record<string, any> | null {
@@ -151,6 +173,28 @@ export const storageService = {
     try {
       localStorage.setItem('eskimo_paname_managers_list', JSON.stringify(managers));
     } catch {}
+    // Synchronisation serveur
+    try {
+      fetch('/api/auth/managers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ managers })
+      }).catch(() => {});
+    } catch {}
+  },
+
+  async fetchManagersList(): Promise<any[] | null> {
+    try {
+      const res = await fetch('/api/auth/managers', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.managers)) {
+          localStorage.setItem('eskimo_paname_managers_list', JSON.stringify(data.managers));
+          return data.managers;
+        }
+      }
+    } catch {}
+    return this.loadManagersList();
   },
 
   loadManagersList(): any[] | null {

@@ -622,6 +622,98 @@ app.get('/api/appsheet/info', (_req: Request, res: Response) => {
   });
 });
 
+// =========================================================================
+// ENDPOINTS PERSISTANTS D'AUTHENTIFICATION & PERMISSIONS
+// =========================================================================
+const DATA_DIR = path.resolve(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const PASSWORDS_FILE = path.resolve(DATA_DIR, 'passwords.json');
+const PERMISSIONS_FILE = path.resolve(DATA_DIR, 'cdz_permissions.json');
+const MANAGERS_FILE = path.resolve(DATA_DIR, 'managers.json');
+
+function readJsonFile<T>(filePath: string, fallback: T): T {
+  try {
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn(`Erreur lecture ${filePath}:`, e);
+  }
+  return fallback;
+}
+
+function writeJsonFile(filePath: string, data: any) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error(`Erreur ecriture ${filePath}:`, e);
+  }
+}
+
+// Passwords
+app.get('/api/auth/passwords', (_req: Request, res: Response) => {
+  const passwords = readJsonFile<Record<string, string>>(PASSWORDS_FILE, {});
+  return res.json({ passwords });
+});
+
+app.post('/api/auth/set-password', (req: Request, res: Response) => {
+  const { email, passwordHash } = req.body;
+  if (!email || !passwordHash) {
+    return res.status(400).json({ error: 'Email et passwordHash requis' });
+  }
+  const emailLower = String(email).trim().toLowerCase();
+  const passwords = readJsonFile<Record<string, string>>(PASSWORDS_FILE, {});
+  passwords[emailLower] = passwordHash;
+  writeJsonFile(PASSWORDS_FILE, passwords);
+  return res.json({ success: true, email: emailLower });
+});
+
+app.post('/api/auth/reset-password', (req: Request, res: Response) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'Email requis' });
+  }
+  const emailLower = String(email).trim().toLowerCase();
+  const passwords = readJsonFile<Record<string, string>>(PASSWORDS_FILE, {});
+  delete passwords[emailLower];
+  writeJsonFile(PASSWORDS_FILE, passwords);
+  return res.json({ success: true, email: emailLower, defaultPassword: 'vilavi2026' });
+});
+
+// CDZ Permissions
+app.get('/api/auth/cdz-permissions', (_req: Request, res: Response) => {
+  const permissions = readJsonFile<Record<string, any> | null>(PERMISSIONS_FILE, null);
+  return res.json({ permissions });
+});
+
+app.post('/api/auth/cdz-permissions', (req: Request, res: Response) => {
+  const { permissions } = req.body;
+  if (!permissions) {
+    return res.status(400).json({ error: 'Permissions requises' });
+  }
+  writeJsonFile(PERMISSIONS_FILE, permissions);
+  return res.json({ success: true });
+});
+
+// Managers List
+app.get('/api/auth/managers', (_req: Request, res: Response) => {
+  const managers = readJsonFile<any[] | null>(MANAGERS_FILE, null);
+  return res.json({ managers });
+});
+
+app.post('/api/auth/managers', (req: Request, res: Response) => {
+  const { managers } = req.body;
+  if (!Array.isArray(managers)) {
+    return res.status(400).json({ error: 'Liste de managers requise' });
+  }
+  writeJsonFile(MANAGERS_FILE, managers);
+  return res.json({ success: true });
+});
+
 // Endpoint Agent IA avec support Gemini
 app.post('/api/ai/ask', async (req: Request, res: Response) => {
   try {

@@ -149,6 +149,26 @@ export default function App() {
     return storageService.loadLastMaj() || '20/10/2026 18:15';
   });
 
+  // Synchronisation des permissions CDZ et des Managers depuis le serveur
+  useEffect(() => {
+    storageService.fetchCdzPermissions().then((perms) => {
+      if (perms) setCdzPermissions(perms);
+    });
+    storageService.fetchManagersList().then((mgrs) => {
+      if (mgrs) setManagersList(mgrs);
+    });
+  }, []);
+
+  // Garde-fou automatique : si un CDZ est connecté, forcer l'accès uniquement à ses modules autorisés
+  useEffect(() => {
+    if (isCdz && accessMode) {
+      const perms = cdzPermissions[accessMode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[accessMode.toLowerCase()];
+      if (perms && Array.isArray(perms.allowedModules) && !perms.allowedModules.includes(activeTab)) {
+        setActiveTab(perms.allowedModules[0] || 'pOverview');
+      }
+    }
+  }, [accessMode, isCdz, cdzPermissions, activeTab]);
+
   // Hydrate from IndexedDB on startup & auto-fetch full dataset if empty or mock
   useEffect(() => {
     async function loadSavedData() {

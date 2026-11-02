@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogIn, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { verifyPassword } from '../services/authService';
+import { verifyPassword, syncPasswordsFromServer } from '../services/authService';
 
 interface LoginScreenProps {
   onLoginSuccess: (email: string) => void;
@@ -13,6 +13,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, checkI
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronisation des mots de passe depuis le serveur dès l'affichage
+  useEffect(() => {
+    syncPasswordsFromServer().catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

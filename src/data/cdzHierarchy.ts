@@ -486,10 +486,14 @@ export function isRecordAuthorizedForCdz(
   const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === em);
   if (!cdz) return false;
 
-  // 1. Chef de zone match direct ou alias
+  // 1. Chef de zone match direct, alias OU un des superviseurs rattachés à ce CDZ
   if (record.chefZone) {
     const cz = record.chefZone.trim().toLowerCase();
-    if (cdz.aliases.some((a) => a.toLowerCase() === cz) || cz === cdz.name.toLowerCase()) {
+    if (
+      cdz.aliases.some((a) => a.toLowerCase() === cz) ||
+      cz === cdz.name.toLowerCase() ||
+      cdz.supervisors.some((s) => s.toLowerCase() === cz)
+    ) {
       return true;
     }
   }
@@ -497,7 +501,10 @@ export function isRecordAuthorizedForCdz(
   // 2. Superviseur match (gère rigoureusement les comptes normaux et comptes _BIS !)
   if (record.superviseur) {
     const sup = record.superviseur.trim().toLowerCase();
-    if (cdz.supervisors.some((s) => s.toLowerCase() === sup)) {
+    if (
+      cdz.supervisors.some((s) => s.toLowerCase() === sup) ||
+      cdz.aliases.some((a) => a.toLowerCase() === sup)
+    ) {
       return true;
     }
   }

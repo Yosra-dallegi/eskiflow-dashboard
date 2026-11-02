@@ -31,7 +31,13 @@ import {
   DEFAULT_MANAGERS,
   ManagerUser
 } from '../data/cdzHierarchy';
-import { setUserPassword, resetUserPassword, hasCustomPassword, DEFAULT_PASSWORD_HINT } from '../services/authService';
+import { 
+  setUserPassword, 
+  resetUserPassword, 
+  hasCustomPassword, 
+  DEFAULT_PASSWORD_HINT,
+  syncPasswordsFromServer 
+} from '../services/authService';
 
 interface AccessControlModalProps {
   isOpen: boolean;
@@ -79,6 +85,15 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
   const [showPwdInput, setShowPwdInput] = useState<boolean>(false);
   const [pwdFeedback, setPwdFeedback] = useState<string | null>(null);
   const [pwdVersion, setPwdVersion] = useState<number>(0);
+
+  // Synchroniser les mots de passe et permissions depuis le serveur à l'ouverture
+  useEffect(() => {
+    if (isOpen) {
+      syncPasswordsFromServer().then(() => {
+        setPwdVersion((v) => v + 1);
+      });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -831,14 +846,18 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2">
+                  <div className="flex items-center gap-2 pt-2 flex-wrap">
                     <button
                       type="button"
                       disabled={!newPasswordInput.trim() || newPasswordInput.trim().length < 4}
                       onClick={async () => {
-                        await setUserPassword(selectedPwdEmail, newPasswordInput.trim());
+                        const ok = await setUserPassword(selectedPwdEmail, newPasswordInput.trim());
                         setPwdVersion((v) => v + 1);
-                        setPwdFeedback(`Mot de passe mis à jour avec succès pour ${selectedPwdEmail} !`);
+                        setPwdFeedback(
+                          ok
+                            ? `✅ Nouveau mot de passe enregistré et synchronisé pour ${selectedPwdEmail} !`
+                            : `⚠️ Mot de passe enregistré en local pour ${selectedPwdEmail}.`
+                        );
                         setNewPasswordInput('');
                       }}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer flex items-center gap-1.5"
@@ -847,21 +866,22 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                       Appliquer le mot de passe
                     </button>
 
-                    {hasCustomPassword(selectedPwdEmail) && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          resetUserPassword(selectedPwdEmail);
-                          setPwdVersion((v) => v + 1);
-                          setPwdFeedback(`Mot de passe réinitialisé par défaut (${DEFAULT_PASSWORD_HINT}) pour ${selectedPwdEmail}.`);
-                          setNewPasswordInput('');
-                        }}
-                        className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        Réinitialiser à {DEFAULT_PASSWORD_HINT}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await resetUserPassword(selectedPwdEmail);
+                        setPwdVersion((v) => v + 1);
+                        setPwdFeedback(
+                          `✅ Mot de passe réinitialisé par défaut à « ${DEFAULT_PASSWORD_HINT} » pour ${selectedPwdEmail} (synchronisé sur le serveur).`
+                        );
+                        setNewPasswordInput('');
+                      }}
+                      className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                      title="Réinitialise le mot de passe de l'utilisateur à vilavi2026"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+                      Réinitialiser à {DEFAULT_PASSWORD_HINT}
+                    </button>
                   </div>
                 </div>
 
