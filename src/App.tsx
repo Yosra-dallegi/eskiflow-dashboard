@@ -1041,7 +1041,7 @@ export default function App() {
           currentFrigosCount={scopedFrigos.length}
         />
 
-        {/* Voice Filter Modal */}
+        {/* Voice Filter & AI Assistant Modal */}
         <VoiceFilterModal
           isOpen={isVoiceModalOpen}
           onClose={() => setIsVoiceModalOpen(false)}
@@ -1050,6 +1050,12 @@ export default function App() {
           uniqueCdrs={uniqueCdrs}
           uniqueTitres={uniqueTitres}
           tasks={scopedTasks}
+          realisation={scopedRealisation}
+          frigos={scopedFrigos}
+          visites={visites}
+          activeTab={activeTab}
+          onSwitchTab={(tab) => setActiveTab(tab)}
+          accessMode={accessMode}
         />
 
         {/* PWA / Mobile Install Modal */}
@@ -1070,21 +1076,21 @@ export default function App() {
           onSaveManagersList={handleSaveManagersList}
         />
 
-        {/* Floating Assistant Vocal Button */}
+        {/* Floating Assistant Vocal / Agent IA Button */}
         <button
           onClick={() => setIsVoiceModalOpen(true)}
           className="fixed bottom-20 right-3.5 md:bottom-6 md:right-6 z-40 flex items-center gap-2 md:gap-2.5 px-3 py-2 md:px-4 md:py-3 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20 group"
-          title="Assistant Vocal Derja (Etkallem maa l'assistant)"
+          title="Agent IA & Assistant Vocal EskiFlow — Posez n'importe quelle question sur le dashboard"
         >
           <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
             <Mic className="w-4 h-4 text-white group-hover:animate-pulse" />
           </div>
           <div className="text-left pr-1">
             <div className="text-xs font-bold leading-tight flex items-center gap-1.5">
-              <span>Assistant Vocal</span>
+              <span>Agent IA</span>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
             </div>
-            <div className="text-[10px] text-sky-100 font-medium">Derja & Français</div>
+            <div className="text-[10px] text-sky-100 font-medium">Questions & Données 360°</div>
           </div>
         </button>
       </div>

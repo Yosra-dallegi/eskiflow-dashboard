@@ -248,15 +248,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Assistant Vocal */}
+            {/* Agent IA & Vocal */}
             <button
               onClick={onOpenVoiceModal}
-              title="Assistant Vocal & Filtrage Derja"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition cursor-pointer shadow-xs group"
+              title="Agent IA EskiFlow — Posez n'importe quelle question sur vos données (voix ou texte)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-xs font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl transition cursor-pointer shadow-sm group border border-white/20"
             >
-              <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 group-hover:scale-110 transition-transform animate-pulse" />
-              <span className="hidden xs:inline">Assistant Vocal</span>
-              <span className="xs:hidden">Vocal</span>
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 group-hover:rotate-12 transition-transform animate-pulse" />
+              <span className="hidden xs:inline">Agent IA</span>
+              <span className="xs:hidden">IA</span>
             </button>
 
             {/* Refresh */}

@@ -622,6 +622,37 @@ app.get('/api/appsheet/info', (_req: Request, res: Response) => {
   });
 });
 
+// Endpoint Agent IA avec support Gemini
+app.post('/api/ai/ask', async (req: Request, res: Response) => {
+  try {
+    const { question, metricsSummary } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ error: 'No API key configured' });
+    }
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `Tu es l'Agent IA d'EskiFlow, le dashboard de suivi opérationnel de Vilavi (Eskimo / Paname).
+Données actuelles en direct du dashboard :
+${JSON.stringify(metricsSummary, null, 2)}
+
+Question posée par l'utilisateur : "${question}"
+
+Directives :
+1. Réponds de façon claire, structurée et précise avec les chiffres exacts.
+2. Si la question est posée en Derja tunisien, réponds en français bienveillant avec une touche de derja chaleureuse.
+3. Mets en avant les points clés (retards, réalisations, alertes).`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt
+    });
+    return res.json({ text: response.text });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Start Express server with Vite middleware in development or static dist in production
 async function startServer() {
   const isDev = process.env.npm_lifecycle_event === 'dev' || process.env.NODE_ENV === 'development';
