@@ -209,7 +209,8 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
 
   // Remove a manager
   const handleRemoveManager = (emailToRemove: string) => {
-    if (emailToRemove.toLowerCase() === 'yosra.dallegi@vilavi.tn') {
+    const em = emailToRemove.toLowerCase();
+    if (em === 'yosra.dallegi@vilavi.tn' || em === 'yosra.dallgi@vilavi.tn') {
       alert('Le compte principal de Direction ne peut pas être retiré.');
       return;
     }
@@ -369,7 +370,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                         Se connecter
                       </button>
 
-                      {mgr.email.toLowerCase() !== 'yosra.dallegi@vilavi.tn' && (
+                      {!['yosra.dallegi@vilavi.tn', 'yosra.dallgi@vilavi.tn'].includes(mgr.email.toLowerCase()) && (
                         <button
                           onClick={() => handleRemoveManager(mgr.email)}
                           className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"

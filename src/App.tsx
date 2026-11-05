@@ -111,9 +111,9 @@ export default function App() {
 
   const isAuthorized = isManager || isCdz;
 
-  // Admin exclusif : yosra.dallegi@vilavi.tn
-  const ADMIN_EMAIL = 'yosra.dallegi@vilavi.tn';
-  const isAdmin = (accessMode || '').toLowerCase() === ADMIN_EMAIL;
+  // Admin exclusif : yosra.dallegi@vilavi.tn (gère aussi l'alias yosra.dallgi@vilavi.tn)
+  const ADMIN_EMAILS = ['yosra.dallegi@vilavi.tn', 'yosra.dallgi@vilavi.tn'];
+  const isAdmin = ADMIN_EMAILS.includes((accessMode || '').toLowerCase());
   // Export réservé à l'admin uniquement
   const canExport = isAdmin;
 
@@ -735,7 +735,7 @@ export default function App() {
   // Fonction pour vérifier si un email est connu dans le système
   const checkIsKnownEmail = (email: string): boolean => {
     const lower = (email || '').toLowerCase();
-    if (lower === ADMIN_EMAIL) return true;
+    if (ADMIN_EMAILS.includes(lower)) return true;
     if ((managersList || []).some((m) => m?.email && m.email.toLowerCase() === lower)) return true;
     if (CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === lower)) return true;
     return false;

@@ -282,6 +282,7 @@ export const ALL_COLLABORATORS: Collaborateur[] = [
 
   // Direction & Managers
   { email: 'yosra.dallegi@vilavi.tn', nom: 'Yosra Dallegi', role: 'Direction' },
+  { email: 'yosra.dallgi@vilavi.tn', nom: 'Yosra Dallegi', role: 'Direction' },
   { email: 'oubaiedallah.woissoissi@vilavi.tn', nom: 'Oubaiedallah Woissoissi', role: 'Direction' },
   { email: 'rafik.khefifi@vilavi.tn', nom: 'Rafik Khefifi', role: 'Direction' }
 ];
@@ -370,6 +371,7 @@ export interface ManagerUser {
 
 export const DEFAULT_MANAGERS: ManagerUser[] = [
   { email: 'yosra.dallegi@vilavi.tn', nom: 'Yosra Dallegi', role: 'Direction Commerciale' },
+  { email: 'yosra.dallgi@vilavi.tn', nom: 'Yosra Dallegi', role: 'Direction Commerciale' },
   { email: 'oubaiedallah.woissoissi@vilavi.tn', nom: 'Oubaiedallah Woissoissi', role: 'Manager Commercial' },
   { email: 'rafik.khefifi@vilavi.tn', nom: 'Rafik Khefifi', role: 'Manager Opérations' }
 ];
