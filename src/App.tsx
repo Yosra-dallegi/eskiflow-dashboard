@@ -99,18 +99,21 @@ export default function App() {
 
   // Vérification de sécurité formelle : L'email est-il autorisé ?
   const isManager = useMemo(() => {
-    return accessMode === 'MANAGER' || managersList.some((m) => m.email.toLowerCase() === accessMode.toLowerCase());
+    return (
+      accessMode === 'MANAGER' ||
+      (managersList || []).some((m) => m?.email && m.email.toLowerCase() === (accessMode || '').toLowerCase())
+    );
   }, [accessMode, managersList]);
 
   const isCdz = useMemo(() => {
-    return CDZ_LIST.some((c) => c.email.toLowerCase() === accessMode.toLowerCase());
+    return CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === (accessMode || '').toLowerCase());
   }, [accessMode]);
 
   const isAuthorized = isManager || isCdz;
 
   // Admin exclusif : yosra.dallegi@vilavi.tn
   const ADMIN_EMAIL = 'yosra.dallegi@vilavi.tn';
-  const isAdmin = accessMode.toLowerCase() === ADMIN_EMAIL;
+  const isAdmin = (accessMode || '').toLowerCase() === ADMIN_EMAIL;
   // Export réservé à l'admin uniquement
   const canExport = isAdmin;
 
@@ -127,15 +130,18 @@ export default function App() {
   const handleAccessModeChange = (mode: string) => {
     setAccessMode(mode);
     storageService.saveAccessMode(mode);
-    const isMgr = mode === 'MANAGER' || managersList.some((m) => m.email.toLowerCase() === mode.toLowerCase());
+    const modeLower = (mode || '').toLowerCase();
+    const isMgr =
+      mode === 'MANAGER' ||
+      (managersList || []).some((m) => m?.email && m.email.toLowerCase() === modeLower);
     if (!isMgr) {
-      const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === mode.toLowerCase());
+      const cdz = CDZ_LIST.find((c) => c?.email && c.email.toLowerCase() === modeLower);
       if (cdz) {
         setFilterChefs([cdz.name]);
         setZChefs([cdz.name]);
       }
       // Si l'onglet actuel n'est pas autorisé pour ce CDZ, basculer sur son 1er module autorisé
-      const perms = cdzPermissions[mode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[mode.toLowerCase()];
+      const perms = cdzPermissions[modeLower] || DEFAULT_CDZ_PERMISSIONS[modeLower];
       if (perms && !perms.allowedModules.includes(activeTab)) {
         setActiveTab(perms.allowedModules[0] || 'pOverview');
       }
@@ -250,7 +256,7 @@ export default function App() {
   // ==========================================
   // ISOLATION DES DONNÉES PAR ACCÈS (SCOPED DATA)
   // ==========================================
-  const managerEmails = useMemo(() => managersList.map((m) => m.email), [managersList]);
+  const managerEmails = useMemo(() => (managersList || []).map((m) => m?.email).filter(Boolean) as string[], [managersList]);
 
   // Tâches autorisées pour l'utilisateur connecté
   const scopedTasks = useMemo(() => {
@@ -728,10 +734,10 @@ export default function App() {
 
   // Fonction pour vérifier si un email est connu dans le système
   const checkIsKnownEmail = (email: string): boolean => {
-    const lower = email.toLowerCase();
+    const lower = (email || '').toLowerCase();
     if (lower === ADMIN_EMAIL) return true;
-    if (managersList.some((m) => m.email.toLowerCase() === lower)) return true;
-    if (CDZ_LIST.some((c) => c.email.toLowerCase() === lower)) return true;
+    if ((managersList || []).some((m) => m?.email && m.email.toLowerCase() === lower)) return true;
+    if (CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === lower)) return true;
     return false;
   };
 
@@ -777,8 +783,14 @@ export default function App() {
           onAccessModeChange={handleAccessModeChange}
           managersList={managersList}
           allowedModules={
-            accessMode !== 'MANAGER' && !managersList.some((m) => m.email.toLowerCase() === accessMode.toLowerCase())
-              ? (cdzPermissions[accessMode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[accessMode.toLowerCase()])?.allowedModules
+            accessMode !== 'MANAGER' &&
+            !(managersList || []).some(
+              (m) => m?.email && m.email.toLowerCase() === (accessMode || '').toLowerCase()
+            )
+              ? (
+                  cdzPermissions[(accessMode || '').toLowerCase()] ||
+                  DEFAULT_CDZ_PERMISSIONS[(accessMode || '').toLowerCase()]
+                )?.allowedModules
               : undefined
           }
           lastMaj={lastMaj}

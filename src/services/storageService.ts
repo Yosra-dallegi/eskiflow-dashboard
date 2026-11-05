@@ -157,7 +157,7 @@ export const storageService = {
         }
       }
     } catch {}
-    return this.loadCdzPermissions();
+    return storageService.loadCdzPermissions();
   },
 
   loadCdzPermissions(): Record<string, any> | null {
@@ -194,7 +194,7 @@ export const storageService = {
         }
       }
     } catch {}
-    return this.loadManagersList();
+    return storageService.loadManagersList();
   },
 
   loadManagersList(): any[] | null {

@@ -68,16 +68,29 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
     CDZ_LIST[0]?.email || 'mohamed.jouini@vilavi.tn'
   );
   const [localPerms, setLocalPerms] = useState<Record<string, CdzPermissions>>(() => ({
-    ...permissions
+    ...(permissions || {})
   }));
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
   const [searchCollab, setSearchCollab] = useState<string>('');
 
   // Managers Management state
-  const [localManagers, setLocalManagers] = useState<ManagerUser[]>(() => [...managersList]);
+  const [localManagers, setLocalManagers] = useState<ManagerUser[]>(() => [...(managersList || [])]);
   const [newManagerEmail, setNewManagerEmail] = useState<string>('');
   const [newManagerNom, setNewManagerNom] = useState<string>('');
   const [newManagerRole, setNewManagerRole] = useState<string>('Manager Commercial');
+
+  // Synchroniser quand les props changent
+  useEffect(() => {
+    if (permissions) {
+      setLocalPerms({ ...permissions });
+    }
+  }, [permissions]);
+
+  useEffect(() => {
+    if (managersList) {
+      setLocalManagers([...managersList]);
+    }
+  }, [managersList]);
 
   // Password Management state
   const [selectedPwdEmail, setSelectedPwdEmail] = useState<string>('yosra.dallegi@vilavi.tn');
