@@ -85,6 +85,13 @@ const ACCESS_MODE_KEY = 'eskimo_paname_access_mode';
 export const storageService = {
   async saveTasks(tasks: TaskItem[]) {
     await idbSet(TASKS_KEY, tasks);
+    try {
+      fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasks })
+      }).catch(() => {});
+    } catch {}
   },
 
   async loadTasks(): Promise<TaskItem[] | null> {
@@ -251,6 +258,13 @@ export const storageService = {
   saveTasksFileId(id: string) {
     try {
       localStorage.setItem('eski_paname_tasks_file_id', id);
+    } catch {}
+    try {
+      fetch('/api/config/tasks-file-id', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tasksFileId: id })
+      }).catch(() => {});
     } catch {}
   },
 

@@ -168,6 +168,40 @@ async function downloadDriveFileBuffer(fileId: string, authHeader?: string): Pro
   throw new Error(`Échec du téléchargement Google Drive (Status: ${res.status})`);
 }
 
+// =========================================================================
+// STOCKAGE PERSISTANT SERVEUR (Données, Mots de passe, Permissions & Tâches)
+// =========================================================================
+const DATA_DIR = path.resolve(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const PASSWORDS_FILE = path.resolve(DATA_DIR, 'passwords.json');
+const PERMISSIONS_FILE = path.resolve(DATA_DIR, 'cdz_permissions.json');
+const MANAGERS_FILE = path.resolve(DATA_DIR, 'managers.json');
+const TASKS_FILE = path.resolve(DATA_DIR, 'tasks.json');
+const CONFIG_FILE = path.resolve(DATA_DIR, 'config.json');
+
+function readJsonFile<T>(filePath: string, fallback: T): T {
+  try {
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.warn(`Erreur lecture ${filePath}:`, e);
+  }
+  return fallback;
+}
+
+function writeJsonFile(filePath: string, data: any) {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error(`Erreur ecriture ${filePath}:`, e);
+  }
+}
+
 // API endpoint: Automatic Google Drive synchronisation (supports overview/tasks, frigos, and realisation)
 app.get('/api/sync-drive', async (req: Request, res: Response) => {
   const type = (req.query.type as string) || 'frigos';
@@ -181,11 +215,10 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
     // -------------------------------------------------------------
     // CAS 1 : VUE D'ENSEMBLE (Tâches & Base Clients)
     // -------------------------------------------------------------
-    // CAS 1 : VUE D'ENSEMBLE (Tâches & Base Clients)
-    // -------------------------------------------------------------
     if (type === 'overview' || type === 'tasks') {
-      const clientsFileId = (req.query.clientsFileId as string) || CONFIG_DRIVE.CLIENTS_FILE_ID;
-      const tasksFileId = (req.query.tasksFileId as string) || (req.query.fileId as string) || CONFIG_DRIVE.TASKS_FILE_ID;
+      const savedConfig = readJsonFile<Record<string, any>>(CONFIG_FILE, {});
+      const clientsFileId = (req.query.clientsFileId as string) || savedConfig.clientsFileId || CONFIG_DRIVE.CLIENTS_FILE_ID;
+      const tasksFileId = (req.query.tasksFileId as string) || (req.query.fileId as string) || savedConfig.tasksFileId || CONFIG_DRIVE.TASKS_FILE_ID;
 
       // 1. Download and build Clients Index from CLIENTS_FILE_ID (with cache fallback)
       let clientsIndex: Record<string, any> = {};
@@ -287,6 +320,29 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
           }
         } catch (err: any) {
           console.warn('Erreur lecture Drive pour tâches, recours au fichier Eskiflow local:', err.message);
+        }
+      }
+
+      // If no tasks loaded from Drive yet, check if persisted tasks exist in TASKS_FILE
+      if (rawTaskData.length < 2 && fs.existsSync(TASKS_FILE)) {
+        try {
+          const savedData = readJsonFile<{ tasks: any[]; maj?: string } | any[]>(TASKS_FILE, []);
+          const persistedList = Array.isArray(savedData) ? savedData : (savedData.tasks || []);
+          if (persistedList.length > 0) {
+            return res.json({
+              success: true,
+              type: 'tasks',
+              fileId: tasksFileId || savedConfig.tasksFileId || 'persisted_server_data',
+              source: 'Base Tâches Serveur synchronisée',
+              total: persistedList.length,
+              matchedCount: persistedList.filter((t: any) => t.trouve).length,
+              clientsCount: Object.keys(clientsIndex).length,
+              maj: (savedData as any).maj || majStr,
+              tasks: persistedList
+            });
+          }
+        } catch (e: any) {
+          console.warn('Erreur lecture TASKS_FILE:', e.message);
         }
       }
 
@@ -403,6 +459,10 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
       }
 
       const matchedCount = tasks.filter((t) => t.trouve).length;
+
+      if (tasks.length > 0) {
+        writeJsonFile(TASKS_FILE, { tasks, maj: majStr });
+      }
 
       return res.json({
         success: true,
@@ -596,11 +656,53 @@ app.post('/api/appsheet/webhook', (req: Request, res: Response) => {
       ? payload.Rows
       : [payload];
 
+    const now = new Date();
+    const z = (n: number) => ('0' + n).slice(-2);
+    const majStr = `${z(now.getDate())}/${z(now.getMonth() + 1)}/${now.getFullYear()} ${z(now.getHours())}:${z(now.getMinutes())}`;
+
+    // Persister les nouvelles tâches ou modifications dans data/tasks.json
+    const saved = readJsonFile<{ tasks: any[]; maj?: string } | any[]>(TASKS_FILE, []);
+    const existingTasks: any[] = Array.isArray(saved) ? saved : (saved.tasks || []);
+
+    let addedCount = 0;
+    rows.forEach((r: any) => {
+      if (!r) return;
+      const tid = String(r.ID_Tache || r.id || r.Id || r.ID || '').trim();
+      if (!tid) return;
+      const existingIdx = existingTasks.findIndex((t) => t.id === tid);
+      const newTask = {
+        id: tid,
+        code: String(r.Code_Client || r.code || r.Code || '').trim(),
+        titre: String(r.Titre_Tache || r.titre || r.Titre || 'Tâche commerciale').trim(),
+        desc: String(r.Description || r.desc || '').trim(),
+        echeance: isoDate(r.Date_Echeance || r.echeance),
+        statut: String(r.Statut || r.statut || 'En attente').trim(),
+        demandeur: String(r.demandeur || r.Demandeur || '').trim(),
+        dateReal: isoDate(r.Date_Realisation || r.dateReal),
+        realisePar: String(r.Realise_Par || r.realisePar || '').trim(),
+        dateCreation: isoDate(r.Date_Creation || r.dateCreation || new Date()),
+        chef: String(r.Chef || r.chef || r.nom_chef_zone || '— Non rattaché —').trim(),
+        cdr: String(r.Cdr || r.cdr || r.delegation || '').trim(),
+        repr: String(r.Repr || r.repr || '').trim(),
+        clientNom: String(r.Client_Nom || r.clientNom || r.raison_social || '').trim(),
+        trouve: true
+      };
+      if (existingIdx >= 0) {
+        existingTasks[existingIdx] = { ...existingTasks[existingIdx], ...newTask };
+      } else {
+        existingTasks.unshift(newTask);
+        addedCount++;
+      }
+    });
+
+    writeJsonFile(TASKS_FILE, { tasks: existingTasks, maj: majStr });
+
     return res.json({
       success: true,
-      message: 'Données AppSheet réceptionnées avec succès par Eskiflow',
+      message: 'Données AppSheet réceptionnées et enregistrées avec succès dans les tâches Eskiflow',
       timestamp: new Date().toISOString(),
       receivedCount: rows.length,
+      addedCount,
       sample: rows[0] || null
     });
   } catch (err: any) {
@@ -623,36 +725,34 @@ app.get('/api/appsheet/info', (_req: Request, res: Response) => {
 });
 
 // =========================================================================
-// ENDPOINTS PERSISTANTS D'AUTHENTIFICATION & PERMISSIONS
+// ENDPOINTS PERSISTANTS DE SYNCHRONISATION DES TÂCHES
 // =========================================================================
-const DATA_DIR = path.resolve(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+app.get('/api/tasks', (_req: Request, res: Response) => {
+  const saved = readJsonFile<{ tasks: any[]; maj?: string } | any[]>(TASKS_FILE, []);
+  const list = Array.isArray(saved) ? saved : (saved.tasks || []);
+  const maj = (saved as any)?.maj || '';
+  return res.json({ success: true, tasks: list, maj });
+});
 
-const PASSWORDS_FILE = path.resolve(DATA_DIR, 'passwords.json');
-const PERMISSIONS_FILE = path.resolve(DATA_DIR, 'cdz_permissions.json');
-const MANAGERS_FILE = path.resolve(DATA_DIR, 'managers.json');
-
-function readJsonFile<T>(filePath: string, fallback: T): T {
-  try {
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, 'utf-8');
-      return JSON.parse(raw);
-    }
-  } catch (e) {
-    console.warn(`Erreur lecture ${filePath}:`, e);
+app.post('/api/tasks', (req: Request, res: Response) => {
+  const { tasks, maj } = req.body;
+  if (Array.isArray(tasks)) {
+    const now = new Date();
+    const z = (n: number) => ('0' + n).slice(-2);
+    const majStr = maj || `${z(now.getDate())}/${z(now.getMonth() + 1)}/${now.getFullYear()} ${z(now.getHours())}:${z(now.getMinutes())}`;
+    writeJsonFile(TASKS_FILE, { tasks, maj: majStr });
+    return res.json({ success: true, count: tasks.length });
   }
-  return fallback;
-}
+  return res.status(400).json({ error: 'Format invalide' });
+});
 
-function writeJsonFile(filePath: string, data: any) {
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-  } catch (e) {
-    console.error(`Erreur ecriture ${filePath}:`, e);
-  }
-}
+app.post('/api/config/tasks-file-id', (req: Request, res: Response) => {
+  const { tasksFileId } = req.body;
+  const cfg = readJsonFile<Record<string, any>>(CONFIG_FILE, {});
+  cfg.tasksFileId = String(tasksFileId || '').trim();
+  writeJsonFile(CONFIG_FILE, cfg);
+  return res.json({ success: true, tasksFileId: cfg.tasksFileId });
+});
 
 // Passwords
 app.get('/api/auth/passwords', (_req: Request, res: Response) => {

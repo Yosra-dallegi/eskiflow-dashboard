@@ -521,6 +521,7 @@ export function isRecordAuthorizedForCdz(
     // Nouvel utilisateur sans configuration d'équipe -> ne voit rien d'autre que lui-même
     if (record.visiteurEmail && record.visiteurEmail.toLowerCase() === em) return true;
     if (record.realisePar && record.realisePar.toLowerCase() === em) return true;
+    if (record.demandeur && record.demandeur.toLowerCase() === em) return true;
     return false;
   }
 
@@ -554,10 +555,16 @@ export function isRecordAuthorizedForCdz(
     if (allowedNames.some((n) => sup.includes(n) || n.includes(sup))) return true;
   }
 
-  // C. Vérification par email direct (visiteurEmail, realisePar, demandeur)
-  if (record.visiteurEmail && allowedSet.has(record.visiteurEmail.toLowerCase())) return true;
-  if (record.realisePar && allowedSet.has(record.realisePar.toLowerCase())) return true;
-  if (record.demandeur && allowedSet.has(record.demandeur.toLowerCase())) return true;
+  // C. Vérification par email direct ou nom (visiteurEmail, realisePar, demandeur)
+  if (record.visiteurEmail && (allowedSet.has(record.visiteurEmail.toLowerCase()) || allowedNames.some((n) => record.visiteurEmail!.toLowerCase().includes(n)))) return true;
+  if (record.realisePar) {
+    const rp = record.realisePar.trim().toLowerCase();
+    if (allowedSet.has(rp) || allowedNames.some((n) => rp.includes(n) || n.includes(rp))) return true;
+  }
+  if (record.demandeur) {
+    const dem = record.demandeur.trim().toLowerCase();
+    if (allowedSet.has(dem) || allowedNames.some((n) => dem.includes(n) || n.includes(dem))) return true;
+  }
 
   // D. Vérification par nom visiteur
   if (record.visiteurNom) {

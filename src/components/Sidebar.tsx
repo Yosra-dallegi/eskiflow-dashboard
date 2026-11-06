@@ -20,6 +20,10 @@ interface SidebarProps {
   filterEtats: string[];
   setFilterEtats: (v: string[]) => void;
   
+  filterDemandeurs: string[];
+  setFilterDemandeurs: (v: string[]) => void;
+  uniqueDemandeurs: string[];
+  
   filterFid: string;
   setFilterFid: (v: string) => void;
   filterFrom: string;
@@ -114,6 +118,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   uniqueTitres,
   filterEtats,
   setFilterEtats,
+  filterDemandeurs,
+  setFilterDemandeurs,
+  uniqueDemandeurs,
   filterFid,
   setFilterFid,
   filterFrom,
@@ -216,6 +223,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             options={uniqueTitres}
             selectedValues={filterTitres}
             onChange={setFilterTitres}
+          />
+
+          <MultiSelectFilter
+            label="Demandeur"
+            placeholder="Tous les demandeurs autorisés"
+            options={uniqueDemandeurs}
+            selectedValues={filterDemandeurs}
+            onChange={setFilterDemandeurs}
           />
 
           <MultiSelectFilter

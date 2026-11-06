@@ -267,36 +267,37 @@ export default function App() {
         const maj = storageService.loadLastMaj();
         if (maj) setLastMaj(maj);
 
-        // Auto-fetch real reconciled datasets if not yet in cache
-        if (!hasTasks) {
-          fetch('/api/sync-drive?type=overview')
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success && data.tasks && data.tasks.length > 0) {
-                const computed = computeTaskFields(data.tasks);
-                setTasks(computed);
-                storageService.saveTasks(computed);
-                if (data.maj) {
-                  setLastMaj(data.maj);
-                  storageService.saveLastMaj(data.maj);
-                }
-              }
-            })
-            .catch((e) => console.warn('Auto-sync tasks error:', e));
-        }
+        // Synchronisation automatique en arrière-plan des données fraîches depuis le serveur / Google Drive
+        const storedTasksId = storageService.loadTasksFileId();
+        const overviewEndpoint = storedTasksId
+          ? `/api/sync-drive?type=overview&tasksFileId=${encodeURIComponent(storedTasksId)}`
+          : '/api/sync-drive?type=overview';
 
-        if (!hasFrigos) {
-          fetch('/api/sync-drive?type=frigos')
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success && data.frigos && data.frigos.length > 0) {
-                const newFrzData = { frigos: data.frigos, maj: data.maj };
-                setFrigoData(newFrzData);
-                storageService.saveFrigos(newFrzData);
+        fetch(overviewEndpoint)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.tasks && data.tasks.length > 0) {
+              const computed = computeTaskFields(data.tasks);
+              setTasks(computed);
+              storageService.saveTasks(computed);
+              if (data.maj) {
+                setLastMaj(data.maj);
+                storageService.saveLastMaj(data.maj);
               }
-            })
-            .catch((e) => console.warn('Auto-sync frigos error:', e));
-        }
+            }
+          })
+          .catch((e) => console.warn('Auto-sync tasks error:', e));
+
+        fetch('/api/sync-drive?type=frigos')
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.frigos && data.frigos.length > 0) {
+              const newFrzData = { frigos: data.frigos, maj: data.maj };
+              setFrigoData(newFrzData);
+              storageService.saveFrigos(newFrzData);
+            }
+          })
+          .catch((e) => console.warn('Auto-sync frigos error:', e));
       } catch (e) {
         console.warn('Erreur chargement IndexedDB:', e);
       }
@@ -322,6 +323,7 @@ export default function App() {
     return tasks.filter((t) => isRecordAuthorizedForCdz({
       chefZone: t.chef,
       superviseur: t.demandeur,
+      demandeur: t.demandeur,
       realisePar: t.realisePar,
       repr: t.repr,
       codeClient: t.code
@@ -370,6 +372,7 @@ export default function App() {
   const [filterCdrs, setFilterCdrs] = useState<string[]>([]);
   const [filterTitres, setFilterTitres] = useState<string[]>([]);
   const [filterEtats, setFilterEtats] = useState<string[]>([]);
+  const [filterDemandeurs, setFilterDemandeurs] = useState<string[]>([]);
   const [filterFid, setFilterFid] = useState<string>('');
   const [filterFrom, setFilterFrom] = useState<string>('');
   const [filterTo, setFilterTo] = useState<string>('');
@@ -411,6 +414,12 @@ export default function App() {
 
   const uniqueTitres = useMemo(() => {
     return Array.from(new Set(scopedTasks.map((t) => t.titre).filter(Boolean))).sort();
+  }, [scopedTasks]);
+
+  const uniqueDemandeurs = useMemo(() => {
+    return Array.from(
+      new Set(scopedTasks.map((t) => String(t.demandeur || '').trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
   }, [scopedTasks]);
 
   // Unique options for Realisation
@@ -495,6 +504,7 @@ export default function App() {
       if (filterCdrs.length > 0 && !filterCdrs.includes(t.cdr)) return false;
       if (filterTitres.length > 0 && !filterTitres.includes(t.titre)) return false;
       if (filterEtats.length > 0 && !filterEtats.includes(t.etat || '')) return false;
+      if (filterDemandeurs.length > 0 && !filterDemandeurs.includes(String(t.demandeur || '').trim())) return false;
       if (filterFrom && !(t.echeance && t.echeance >= filterFrom)) return false;
       if (filterTo && !(t.echeance && t.echeance <= filterTo)) return false;
 
@@ -524,6 +534,7 @@ export default function App() {
     filterCdrs,
     filterTitres,
     filterEtats,
+    filterDemandeurs,
     filterFid,
     filterFrom,
     filterTo,
@@ -543,6 +554,7 @@ export default function App() {
     setFilterCdrs([]);
     setFilterTitres([]);
     setFilterEtats([]);
+    setFilterDemandeurs([]);
     setFilterFid('');
     setFilterFrom('');
     setFilterTo('');
@@ -589,6 +601,7 @@ export default function App() {
       count += filterCdrs.length;
       count += filterTitres.length;
       count += filterEtats.length;
+      count += filterDemandeurs.length;
       if (filterFid) count++;
       if (filterFrom) count++;
       if (filterTo) count++;
@@ -937,6 +950,9 @@ export default function App() {
                 uniqueTitres={uniqueTitres}
                 filterEtats={filterEtats}
                 setFilterEtats={setFilterEtats}
+                filterDemandeurs={filterDemandeurs}
+                setFilterDemandeurs={setFilterDemandeurs}
+                uniqueDemandeurs={uniqueDemandeurs}
                 filterFid={filterFid}
                 setFilterFid={setFilterFid}
                 filterFrom={filterFrom}
@@ -1021,6 +1037,9 @@ export default function App() {
               uniqueTitres={uniqueTitres}
               filterEtats={filterEtats}
               setFilterEtats={setFilterEtats}
+              filterDemandeurs={filterDemandeurs}
+              setFilterDemandeurs={setFilterDemandeurs}
+              uniqueDemandeurs={uniqueDemandeurs}
               filterFid={filterFid}
               setFilterFid={setFilterFid}
               filterFrom={filterFrom}
