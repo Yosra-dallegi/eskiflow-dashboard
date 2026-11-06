@@ -5,6 +5,7 @@ import { INITIAL_TASKS, INITIAL_REALISATION, INITIAL_FRIGOS } from './data/mockD
 import { INITIAL_VISITES } from './data/visitesData';
 import { 
   CDZ_LIST, 
+  ALL_COLLABORATORS,
   CdzPermissions, 
   DEFAULT_CDZ_PERMISSIONS, 
   DEFAULT_MANAGERS, 
@@ -79,20 +80,51 @@ export default function App() {
   const [frigoData, setFrigoData] = useState<FrigoData>(INITIAL_FRIGOS);
   const [visites, setVisites] = useState<VisiteItem[]>(INITIAL_VISITES);
 
-  // Mode d'accès : 'MANAGER' (tout voir) ou email d'un CDZ (voir son équipe)
-  const [accessMode, setAccessMode] = useState<string>(() => storageService.loadAccessMode() || '');
+  // Mode d'accès : 'MANAGER' (tout voir) ou email d'un collaborateur
+  // Prise en charge automatique des liens magiques partagés (?user=... ou ?login=... ou ?auth=...)
+  const [accessMode, setAccessMode] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlUser = params.get('user') || params.get('login') || params.get('auth') || params.get('email');
+        if (urlUser) {
+          const clean = urlUser.trim().toLowerCase();
+          storageService.saveAccessMode(clean);
+          return clean;
+        }
+      } catch {}
+    }
+    return storageService.loadAccessMode() || '';
+  });
   
   // Liste des managers autorisés (Oubaiedallah, Rafik, Yosra...)
   const [managersList, setManagersList] = useState<ManagerUser[]>(() => {
     return storageService.loadManagersList() || DEFAULT_MANAGERS;
   });
 
-  // Permissions par CDZ (modules autorisés & collaborateurs visibles)
+  // Permissions par CDZ et collaborateurs (modules autorisés & équipe visible)
   const [cdzPermissions, setCdzPermissions] = useState<Record<string, CdzPermissions>>(() => {
     return storageService.loadCdzPermissions() || DEFAULT_CDZ_PERMISSIONS;
   });
 
   const [isAccessModalOpen, setIsAccessModalOpen] = useState<boolean>(false);
+
+  // Détection URL magique en continu
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlUser = params.get('user') || params.get('login') || params.get('auth') || params.get('email');
+        if (urlUser) {
+          const clean = urlUser.trim().toLowerCase();
+          if (clean && clean !== accessMode) {
+            setAccessMode(clean);
+            storageService.saveAccessMode(clean);
+          }
+        }
+      } catch {}
+    }
+  }, [accessMode]);
 
   // Vérification de sécurité formelle : L'email est-il autorisé ?
   const isManager = useMemo(() => {
@@ -106,7 +138,12 @@ export default function App() {
     return CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === (accessMode || '').toLowerCase());
   }, [accessMode]);
 
-  const isAuthorized = isManager || isCdz;
+  const isCustomUser = useMemo(() => {
+    const em = (accessMode || '').trim().toLowerCase();
+    return Boolean(em && cdzPermissions && cdzPermissions[em]);
+  }, [accessMode, cdzPermissions]);
+
+  const isAuthorized = isManager || isCdz || isCustomUser;
 
   // Admin exclusif : yosra.dallegi@vilavi.tn (gère aussi l'alias yosra.dallgi@vilavi.tn)
   const ADMIN_EMAILS = ['yosra.dallegi@vilavi.tn', 'yosra.dallgi@vilavi.tn'];
@@ -732,10 +769,13 @@ export default function App() {
 
   // Fonction pour vérifier si un email est connu dans le système
   const checkIsKnownEmail = (email: string): boolean => {
-    const lower = (email || '').toLowerCase();
+    const lower = (email || '').toLowerCase().trim();
+    if (!lower) return false;
     if (ADMIN_EMAILS.includes(lower)) return true;
     if ((managersList || []).some((m) => m?.email && m.email.toLowerCase() === lower)) return true;
     if (CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === lower)) return true;
+    if (cdzPermissions && cdzPermissions[lower]) return true;
+    if (ALL_COLLABORATORS.some((c) => c?.email && c.email.toLowerCase() === lower)) return true;
     return false;
   };
 

@@ -24,7 +24,12 @@ import {
   Navigation,
   TrendingUp,
   Snowflake,
-  ExternalLink
+  ExternalLink,
+  Share2,
+  Copy,
+  CheckCheck,
+  Link2,
+  Send
 } from 'lucide-react';
 import { 
   CDZ_LIST, 
@@ -94,6 +99,32 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
   const [searchCollab, setSearchCollab] = useState<string>('');
   const [searchUser, setSearchUser] = useState<string>('');
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
+  const [copiedLinkEmail, setCopiedLinkEmail] = useState<string | null>(null);
+  const [createdUserShareInfo, setCreatedUserShareInfo] = useState<{ email: string; nom: string; link: string } | null>(null);
+
+  const getShareableLink = (email: string) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${origin}/?user=${encodeURIComponent(email.trim().toLowerCase())}`;
+  };
+
+  const copyShareableLink = async (email: string, nom: string) => {
+    const link = getShareableLink(email);
+    try {
+      if (navigator && navigator.clipboard) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        throw new Error('No clipboard');
+      }
+      setCopiedLinkEmail(email);
+      setSavedBanner(`Lien d'accès copié pour ${nom} !`);
+      setTimeout(() => {
+        setCopiedLinkEmail(null);
+        setSavedBanner(null);
+      }, 3000);
+    } catch {
+      prompt("Copiez ce lien d'accès :", link);
+    }
+  };
 
   // Password Management state
   const [selectedPwdEmail, setSelectedPwdEmail] = useState<string>('yosra.dallegi@vilavi.tn');
@@ -308,20 +339,35 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
       role: newRole.trim() || 'Collaborateur'
     };
 
-    setLocalPerms((prev) => ({
-      ...prev,
+    const updatedPerms = {
+      ...localPerms,
       [cleanEmail]: newPerm
-    }));
+    };
+    setLocalPerms(updatedPerms);
 
     // 2. Si global, ajouter aux managers
+    let updatedManagers = localManagers;
     if (newIsGlobal) {
-      setLocalManagers((prev) => [
-        ...prev,
+      updatedManagers = [
+        ...localManagers,
         { email: cleanEmail, nom: cleanNom, role: newRole.trim() || 'Manager Commercial' }
-      ]);
+      ];
+      setLocalManagers(updatedManagers);
     }
 
-    // 3. Reset form
+    // 3. Sauvegarde et synchronisation serveur IMMÉDIATE
+    onSavePermissions(updatedPerms);
+    onSaveManagersList(updatedManagers);
+
+    // 4. Générer le lien de partage automatique
+    const magicLink = getShareableLink(cleanEmail);
+    setCreatedUserShareInfo({
+      email: cleanEmail,
+      nom: cleanNom,
+      link: magicLink
+    });
+
+    // 5. Reset form
     setNewNom('');
     setNewEmail('');
     setNewRole('Chef de Zone');
@@ -331,8 +377,8 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
     setShowCreateForm(false);
     setEditingEmail(cleanEmail);
 
-    setSavedBanner(`Compte "${cleanNom}" (${cleanEmail}) créé avec succès ! Mot de passe initial : ${DEFAULT_PASSWORD_HINT}`);
-    setTimeout(() => setSavedBanner(null), 4000);
+    setSavedBanner(`Compte "${cleanNom}" (${cleanEmail}) créé et synchronisé sur le serveur !`);
+    setTimeout(() => setSavedBanner(null), 5000);
   };
 
   // Remove an access
@@ -345,20 +391,23 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
     if (!confirm(`Confirmez-vous la suppression de l'accès pour "${emailToRemove}" ?`)) return;
 
     // Remove from permissions
-    setLocalPerms((prev) => {
-      const copy = { ...prev };
-      delete copy[em];
-      return copy;
-    });
+    const updatedPerms = { ...localPerms };
+    delete updatedPerms[em];
+    setLocalPerms(updatedPerms);
 
     // Remove from managers
-    setLocalManagers((prev) => prev.filter((m) => m.email.toLowerCase() !== em));
+    const updatedManagers = localManagers.filter((m) => m.email.toLowerCase() !== em);
+    setLocalManagers(updatedManagers);
+
+    // Sauvegarder sur le serveur
+    onSavePermissions(updatedPerms);
+    onSaveManagersList(updatedManagers);
 
     if (editingEmail.toLowerCase() === em) {
       setEditingEmail('mohamed.jouini@vilavi.tn');
     }
 
-    setSavedBanner(`Accès pour ${emailToRemove} retiré.`);
+    setSavedBanner(`Accès pour ${emailToRemove} retiré et synchronisé.`);
     setTimeout(() => setSavedBanner(null), 3000);
   };
 
@@ -619,10 +668,84 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                     className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
                   >
                     <Check className="w-4 h-4" />
-                    Enregistrer ce Nouvel Accès
+                    Enregistrer l'accès & Générer le lien
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* CARTE PARTAGE DU LIEN GÉNÉRÉ APRÈS CRÉATION */}
+            {createdUserShareInfo && (
+              <div className="p-5 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl shadow-xl border border-blue-400/40 space-y-3 animate-in zoom-in-95 duration-200">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold text-lg border border-emerald-400/40 shrink-0">
+                      ✓
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                        <span>Compte créé et synchronisé sur le serveur : {createdUserShareInfo.nom}</span>
+                        <span className="text-[10px] bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-400/30 font-bold">
+                          Lien d'accès prêt
+                        </span>
+                      </h4>
+                      <p className="text-xs text-blue-200/90 mt-0.5">
+                        Voici le lien direct à envoyer à ce collaborateur pour qu'il ouvre immédiatement son tableau de bord :
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCreatedUserShareInfo(null)}
+                    className="text-slate-400 hover:text-white p-1 rounded-lg transition cursor-pointer"
+                    title="Fermer cette bannière"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  <input
+                    type="text"
+                    readOnly
+                    value={createdUserShareInfo.link}
+                    className="flex-1 px-3 py-2 text-xs font-mono bg-white/10 border border-white/20 rounded-xl text-sky-200 select-all focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyShareableLink(createdUserShareInfo.email, createdUserShareInfo.nom)}
+                    className="px-3.5 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {copiedLinkEmail === createdUserShareInfo.email ? (
+                      <>
+                        <CheckCheck className="w-4 h-4 text-emerald-300" />
+                        <span>Lien Copié !</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copier le lien</span>
+                      </>
+                    )}
+                  </button>
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Bonjour ${createdUserShareInfo.nom}, voici votre lien d'accès direct pour l'application EskiFlow Vilavi :\n${createdUserShareInfo.link}\nMot de passe par défaut : vilavi2026`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>WhatsApp</span>
+                  </a>
+                  <a
+                    href={`mailto:${createdUserShareInfo.email}?subject=${encodeURIComponent('Votre accès à EskiFlow Vilavi')}&body=${encodeURIComponent(`Bonjour ${createdUserShareInfo.nom},\n\nVotre accès à l'application EskiFlow Vilavi a été configuré.\n\nVous pouvez y accéder directement via ce lien personnel :\n${createdUserShareInfo.link}\n\nMot de passe par défaut : vilavi2026\n\nCordialement,\nDirection Vilavi`)}`}
+                    className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl border border-white/20 transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Email</span>
+                  </a>
+                </div>
+              </div>
             )}
 
             {/* Grille principale : Sélection du compte à gauche / Configuration à droite */}
@@ -683,6 +806,28 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                copyShareableLink(user.email, user.nom);
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                              title="Copier le lien direct pour partager l'app à ce collaborateur"
+                            >
+                              {copiedLinkEmail === user.email ? (
+                                <>
+                                  <CheckCheck className="w-3 h-3 text-emerald-600" />
+                                  <span>Copié</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Link2 className="w-3 h-3 text-blue-600" />
+                                  <span>Lien</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 onSelectAccessMode(user.email);
                                 setSavedBanner(`Aperçu activé : vous visualisez maintenant le dashboard tel que le voit "${user.nom}".`);
                                 setTimeout(() => setSavedBanner(null), 3500);
@@ -700,7 +845,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                                   e.stopPropagation();
                                   handleRemoveUser(user.email);
                                 }}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition"
+                                className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"
                                 title="Supprimer cet accès"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -760,6 +905,57 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                     <ExternalLink className="w-3.5 h-3.5" />
                     Tester cette vue en direct
                   </button>
+                </div>
+
+                {/* Lien d'accès direct généré & Partage */}
+                <div className="bg-gradient-to-r from-blue-50 via-indigo-50/60 to-sky-50 border border-blue-200/90 rounded-2xl p-4 space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-xs">
+                        <Link2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900 leading-tight">Lien d'accès direct pour ce collaborateur</h4>
+                        <p className="text-[11px] text-slate-500">Envoyez ce lien pour ouvrir l'application directement dans sa session</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <input
+                      type="text"
+                      readOnly
+                      value={getShareableLink(currentEditingUser?.email || '')}
+                      className="flex-1 px-3 py-2 text-xs font-mono bg-white border border-blue-200 rounded-xl text-slate-700 select-all focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyShareableLink(currentEditingUser?.email || '', currentEditingUser?.nom || '')}
+                      className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      {copiedLinkEmail === currentEditingUser?.email ? (
+                        <>
+                          <CheckCheck className="w-3.5 h-3.5 text-emerald-300" />
+                          <span>Lien Copié !</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copier le lien</span>
+                        </>
+                      )}
+                    </button>
+                    <a
+                      href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`Bonjour ${currentEditingUser?.nom}, voici votre lien d'accès direct pour l'application EskiFlow Vilavi :\n${getShareableLink(currentEditingUser?.email || '')}\nMot de passe par défaut : vilavi2026`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                      title="Envoyer par WhatsApp"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>WhatsApp</span>
+                    </a>
+                  </div>
                 </div>
 
                 {/* 1. Vues autorisées */}

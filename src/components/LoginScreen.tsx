@@ -8,7 +8,15 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, checkIsKnownEmail }) => {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        return p.get('user') || p.get('email') || p.get('login') || '';
+      } catch {}
+    }
+    return '';
+  });
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
