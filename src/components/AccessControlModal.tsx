@@ -19,7 +19,12 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Search,
+  Navigation,
+  TrendingUp,
+  Snowflake,
+  ExternalLink
 } from 'lucide-react';
 import { 
   CDZ_LIST, 
@@ -27,15 +32,15 @@ import {
   ALL_COLLABORATORS, 
   ModuleKey, 
   CdzPermissions,
-  DEFAULT_CDZ_PERMISSIONS,
-  DEFAULT_MANAGERS,
-  ManagerUser
+  DEFAULT_CDZ_PERMISSIONS, 
+  DEFAULT_MANAGERS, 
+  ManagerUser 
 } from '../data/cdzHierarchy';
 import { 
   setUserPassword, 
   resetUserPassword, 
   hasCustomPassword, 
-  DEFAULT_PASSWORD_HINT,
+  DEFAULT_PASSWORD_HINT, 
   syncPasswordsFromServer 
 } from '../services/authService';
 
@@ -60,26 +65,44 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
   managersList,
   onSaveManagersList
 }) => {
-  // Main Tab: 'cdz' | 'managers' | 'passwords'
-  const [activeSubTab, setActiveSubTab] = useState<'cdz' | 'managers' | 'passwords'>('managers');
+  // Tabs: 'users' (Création & gestion des accès) | 'passwords' (Mots de passe)
+  const [activeTab, setActiveTab] = useState<'users' | 'passwords'>('users');
 
-  // CDZ Configuration state
-  const [selectedCdzEmail, setSelectedCdzEmail] = useState<string>(
-    CDZ_LIST[0]?.email || 'mohamed.jouini@vilavi.tn'
-  );
+  // Permissions state
   const [localPerms, setLocalPerms] = useState<Record<string, CdzPermissions>>(() => ({
     ...(permissions || {})
   }));
-  const [savedBanner, setSavedBanner] = useState<string | null>(null);
+
+  // Managers state
+  const [localManagers, setLocalManagers] = useState<ManagerUser[]>(() => [
+    ...(managersList || [])
+  ]);
+
+  // Selected user being edited
+  const [editingEmail, setEditingEmail] = useState<string>('mohamed.jouini@vilavi.tn');
+
+  // Form for creating a brand new access
+  const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
+  const [newNom, setNewNom] = useState<string>('');
+  const [newEmail, setNewEmail] = useState<string>('');
+  const [newRole, setNewRole] = useState<string>('Chef de Zone');
+  const [newIsGlobal, setNewIsGlobal] = useState<boolean>(false);
+  const [newModules, setNewModules] = useState<ModuleKey[]>(['pOverview', 'pVisites', 'pMonth', 'pFrigos']);
+  const [newTeamEmails, setNewTeamEmails] = useState<string[]>([]);
+
+  // Search & Filters
   const [searchCollab, setSearchCollab] = useState<string>('');
+  const [searchUser, setSearchUser] = useState<string>('');
+  const [savedBanner, setSavedBanner] = useState<string | null>(null);
 
-  // Managers Management state
-  const [localManagers, setLocalManagers] = useState<ManagerUser[]>(() => [...(managersList || [])]);
-  const [newManagerEmail, setNewManagerEmail] = useState<string>('');
-  const [newManagerNom, setNewManagerNom] = useState<string>('');
-  const [newManagerRole, setNewManagerRole] = useState<string>('Manager Commercial');
+  // Password Management state
+  const [selectedPwdEmail, setSelectedPwdEmail] = useState<string>('yosra.dallegi@vilavi.tn');
+  const [newPasswordInput, setNewPasswordInput] = useState<string>('');
+  const [showPwdInput, setShowPwdInput] = useState<boolean>(false);
+  const [pwdFeedback, setPwdFeedback] = useState<string | null>(null);
+  const [, setPwdVersion] = useState<number>(0);
 
-  // Synchroniser quand les props changent
+  // Sync from props
   useEffect(() => {
     if (permissions) {
       setLocalPerms({ ...permissions });
@@ -92,14 +115,6 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
     }
   }, [managersList]);
 
-  // Password Management state
-  const [selectedPwdEmail, setSelectedPwdEmail] = useState<string>('yosra.dallegi@vilavi.tn');
-  const [newPasswordInput, setNewPasswordInput] = useState<string>('');
-  const [showPwdInput, setShowPwdInput] = useState<boolean>(false);
-  const [pwdFeedback, setPwdFeedback] = useState<string | null>(null);
-  const [pwdVersion, setPwdVersion] = useState<number>(0);
-
-  // Synchroniser les mots de passe et permissions depuis le serveur à l'ouverture
   useEffect(() => {
     if (isOpen) {
       syncPasswordsFromServer().then(() => {
@@ -110,38 +125,103 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentCdz = CDZ_LIST.find((c) => c.email.toLowerCase() === selectedCdzEmail.toLowerCase()) || CDZ_LIST[0];
-  const cdzConfig = localPerms[selectedCdzEmail.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[selectedCdzEmail.toLowerCase()] || {
+  // Build the complete list of known users in the system
+  const allUserAccounts = (() => {
+    const map = new Map<string, { email: string; nom: string; role: string; isManager: boolean; isCdz: boolean }>();
+
+    // 1. Admin principal
+    map.set('yosra.dallegi@vilavi.tn', {
+      email: 'yosra.dallegi@vilavi.tn',
+      nom: 'Yosra Dallegi',
+      role: 'Direction Commerciale (Admin Total)',
+      isManager: true,
+      isCdz: false
+    });
+
+    // 2. Managers
+    (localManagers || []).forEach((m) => {
+      if (m?.email && !map.has(m.email.toLowerCase())) {
+        map.set(m.email.toLowerCase(), {
+          email: m.email.toLowerCase(),
+          nom: m.nom || m.email,
+          role: m.role || 'Manager Commercial',
+          isManager: true,
+          isCdz: false
+        });
+      }
+    });
+
+    // 3. CDZ par défaut
+    CDZ_LIST.forEach((c) => {
+      const em = c.email.toLowerCase();
+      if (!map.has(em)) {
+        map.set(em, {
+          email: em,
+          nom: c.name,
+          role: 'Chef de Zone',
+          isManager: false,
+          isCdz: true
+        });
+      }
+    });
+
+    // 4. Utilisateurs personnalisés enregistrés dans localPerms
+    Object.keys(localPerms).forEach((em) => {
+      const lower = em.toLowerCase();
+      if (!map.has(lower)) {
+        const p = localPerms[lower];
+        map.set(lower, {
+          email: lower,
+          nom: p.nom || lower,
+          role: p.role || 'Collaborateur personnalisé',
+          isManager: !!p.isGlobalManager,
+          isCdz: false
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  })();
+
+  // Current user being edited
+  const currentEditingUser = allUserAccounts.find((u) => u.email === editingEmail.toLowerCase()) || allUserAccounts[0];
+  const currentConfig: CdzPermissions = localPerms[editingEmail.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[editingEmail.toLowerCase()] || {
     allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
-    allowedTeamEmails: currentCdz.teamEmails
+    allowedTeamEmails: (() => {
+      const c = CDZ_LIST.find((x) => x.email.toLowerCase() === editingEmail.toLowerCase());
+      return c ? c.teamEmails : [editingEmail.toLowerCase()];
+    })(),
+    isGlobalManager: currentEditingUser?.isManager || false,
+    nom: currentEditingUser?.nom,
+    role: currentEditingUser?.role
   };
 
-  // Toggle allowed module for a CDZ
-  const toggleModule = (moduleKey: ModuleKey) => {
-    const currentList = cdzConfig.allowedModules || [];
+  // Toggle Module for currently edited user
+  const handleToggleModule = (moduleKey: ModuleKey) => {
+    const current = currentConfig.allowedModules || ['pOverview', 'pVisites', 'pMonth', 'pFrigos'];
     let updated: ModuleKey[];
-    if (currentList.includes(moduleKey)) {
-      if (currentList.length === 1) {
-        alert('Chaque Chef de Zone doit au moins conserver l\'accès à un module.');
+    if (current.includes(moduleKey)) {
+      if (current.length === 1) {
+        alert('Chaque utilisateur doit conserver l\'accès à au moins une vue.');
         return;
       }
-      updated = currentList.filter((m) => m !== moduleKey);
+      updated = current.filter((m) => m !== moduleKey);
     } else {
-      updated = [...currentList, moduleKey];
+      updated = [...current, moduleKey];
     }
 
     setLocalPerms((prev) => ({
       ...prev,
-      [selectedCdzEmail.toLowerCase()]: {
-        ...cdzConfig,
+      [editingEmail.toLowerCase()]: {
+        ...currentConfig,
         allowedModules: updated
       }
     }));
   };
 
-  // Toggle allowed collaborator / team member
-  const toggleCollaborator = (collabEmail: string) => {
-    const currentEmails = (cdzConfig.allowedTeamEmails || []).map((e) => e.toLowerCase());
+  // Toggle Collaborator for currently edited user
+  const handleToggleCollaborator = (collabEmail: string) => {
+    const currentEmails = (currentConfig.allowedTeamEmails || []).map((e) => e.toLowerCase());
     const target = collabEmail.toLowerCase();
     let updated: string[];
 
@@ -153,8 +233,8 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
 
     setLocalPerms((prev) => ({
       ...prev,
-      [selectedCdzEmail.toLowerCase()]: {
-        ...cdzConfig,
+      [editingEmail.toLowerCase()]: {
+        ...currentConfig,
         allowedTeamEmails: updated
       }
     }));
@@ -164,92 +244,167 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
     const all = ALL_COLLABORATORS.map((c) => c.email.toLowerCase());
     setLocalPerms((prev) => ({
       ...prev,
-      [selectedCdzEmail.toLowerCase()]: {
-        ...cdzConfig,
+      [editingEmail.toLowerCase()]: {
+        ...currentConfig,
         allowedTeamEmails: all
       }
     }));
   };
 
-  const handleResetCdzToDefault = () => {
-    const def = DEFAULT_CDZ_PERMISSIONS[selectedCdzEmail.toLowerCase()];
-    if (def) {
-      setLocalPerms((prev) => ({
-        ...prev,
-        [selectedCdzEmail.toLowerCase()]: {
-          allowedModules: [...def.allowedModules],
-          allowedTeamEmails: [...def.allowedTeamEmails]
-        }
-      }));
+  const handleSelectSelfOnly = () => {
+    setLocalPerms((prev) => ({
+      ...prev,
+      [editingEmail.toLowerCase()]: {
+        ...currentConfig,
+        allowedTeamEmails: [editingEmail.toLowerCase()]
+      }
+    }));
+  };
+
+  const handleToggleGlobalManager = (isGlobal: boolean) => {
+    setLocalPerms((prev) => ({
+      ...prev,
+      [editingEmail.toLowerCase()]: {
+        ...currentConfig,
+        isGlobalManager: isGlobal
+      }
+    }));
+
+    // Si devenu global, s'assurer qu'il est présent dans localManagers
+    if (isGlobal) {
+      if (!localManagers.some((m) => m.email.toLowerCase() === editingEmail.toLowerCase())) {
+        setLocalManagers((prev) => [
+          ...prev,
+          {
+            email: editingEmail.toLowerCase(),
+            nom: currentEditingUser?.nom || editingEmail,
+            role: currentEditingUser?.role || 'Manager Commercial'
+          }
+        ]);
+      }
     }
   };
 
-  // Add a new manager
-  const handleAddManager = (e: React.FormEvent) => {
+  // Create brand new access
+  const handleCreateNewAccess = (e: React.FormEvent) => {
     e.preventDefault();
-    const emailClean = newManagerEmail.trim().toLowerCase();
-    const nomClean = newManagerNom.trim();
-    if (!emailClean || !nomClean) {
-      alert('Veuillez saisir un nom et une adresse email.');
+    const cleanEmail = newEmail.trim().toLowerCase();
+    const cleanNom = newNom.trim();
+    if (!cleanEmail || !cleanNom) {
+      alert('Veuillez renseigner un nom et une adresse email.');
       return;
     }
-    if (localManagers.some((m) => m.email.toLowerCase() === emailClean)) {
-      alert('Ce collaborateur a déjà le statut Manager.');
+    if (allUserAccounts.some((u) => u.email === cleanEmail)) {
+      alert(`Un compte avec l'adresse "${cleanEmail}" existe déjà.`);
       return;
     }
 
-    const updated = [
-      ...localManagers,
-      { email: emailClean, nom: nomClean, role: newManagerRole.trim() || 'Manager' }
-    ];
-    setLocalManagers(updated);
-    setNewManagerEmail('');
-    setNewManagerNom('');
+    // 1. Définir les permissions
+    const newPerm: CdzPermissions = {
+      allowedModules: newModules.length > 0 ? newModules : ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+      allowedTeamEmails: newIsGlobal ? [] : (newTeamEmails.length > 0 ? newTeamEmails : [cleanEmail]),
+      isGlobalManager: newIsGlobal,
+      nom: cleanNom,
+      role: newRole.trim() || 'Collaborateur'
+    };
+
+    setLocalPerms((prev) => ({
+      ...prev,
+      [cleanEmail]: newPerm
+    }));
+
+    // 2. Si global, ajouter aux managers
+    if (newIsGlobal) {
+      setLocalManagers((prev) => [
+        ...prev,
+        { email: cleanEmail, nom: cleanNom, role: newRole.trim() || 'Manager Commercial' }
+      ]);
+    }
+
+    // 3. Reset form
+    setNewNom('');
+    setNewEmail('');
+    setNewRole('Chef de Zone');
+    setNewIsGlobal(false);
+    setNewModules(['pOverview', 'pVisites', 'pMonth', 'pFrigos']);
+    setNewTeamEmails([]);
+    setShowCreateForm(false);
+    setEditingEmail(cleanEmail);
+
+    setSavedBanner(`Compte "${cleanNom}" (${cleanEmail}) créé avec succès ! Mot de passe initial : ${DEFAULT_PASSWORD_HINT}`);
+    setTimeout(() => setSavedBanner(null), 4000);
   };
 
-  // Remove a manager
-  const handleRemoveManager = (emailToRemove: string) => {
+  // Remove an access
+  const handleRemoveUser = (emailToRemove: string) => {
     const em = emailToRemove.toLowerCase();
     if (em === 'yosra.dallegi@vilavi.tn' || em === 'yosra.dallgi@vilavi.tn') {
-      alert('Le compte principal de Direction ne peut pas être retiré.');
+      alert('Le compte principal de Direction ne peut pas être supprimé.');
       return;
     }
-    const updated = localManagers.filter((m) => m.email.toLowerCase() !== emailToRemove.toLowerCase());
-    setLocalManagers(updated);
+    if (!confirm(`Confirmez-vous la suppression de l'accès pour "${emailToRemove}" ?`)) return;
+
+    // Remove from permissions
+    setLocalPerms((prev) => {
+      const copy = { ...prev };
+      delete copy[em];
+      return copy;
+    });
+
+    // Remove from managers
+    setLocalManagers((prev) => prev.filter((m) => m.email.toLowerCase() !== em));
+
+    if (editingEmail.toLowerCase() === em) {
+      setEditingEmail('mohamed.jouini@vilavi.tn');
+    }
+
+    setSavedBanner(`Accès pour ${emailToRemove} retiré.`);
+    setTimeout(() => setSavedBanner(null), 3000);
   };
 
-  // Save All
+  // Save All Changes & Push to Server
   const handleSaveAll = () => {
     onSavePermissions(localPerms);
     onSaveManagersList(localManagers);
-    setSavedBanner('Modifications enregistrées avec succès !');
+    setSavedBanner('Toutes les modifications de sécurité et vues ont été enregistrées avec succès !');
     setTimeout(() => {
       setSavedBanner(null);
       onClose();
-    }, 1200);
+    }, 1500);
   };
 
+  // Filtered Collaborators for team assignment
   const filteredCollabs = ALL_COLLABORATORS.filter((c) => {
     const q = searchCollab.trim().toLowerCase();
     if (!q) return true;
     return c.nom.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.role.toLowerCase().includes(q);
   });
 
+  // Filtered Users list
+  const filteredUsers = allUserAccounts.filter((u) => {
+    const q = searchUser.trim().toLowerCase();
+    if (!q) return true;
+    return u.nom.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+  });
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4.5 bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 text-white flex items-center justify-between shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative w-full max-w-5xl max-h-[92vh] flex flex-col bg-white rounded-3xl shadow-2xl border border-blue-100 overflow-hidden">
+        {/* Header avec dégradé bleu corporate */}
+        <div className="px-6 py-4 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-white/15 backdrop-blur-md shadow-inner">
-              <ShieldCheck className="w-6 h-6 text-sky-200" />
+            <div className="p-2.5 rounded-2xl bg-white/10 backdrop-blur-md shadow-inner text-sky-300">
+              <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold leading-tight">
-                Gestion des Rôles & Sécurité d'Accès
+              <h2 className="text-lg font-bold leading-tight flex items-center gap-2">
+                <span>Gestion des Droits d'Accès, Vues & Données</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/30 text-sky-200 border border-blue-400/30">
+                  {allUserAccounts.length} comptes
+                </span>
               </h2>
-              <p className="text-xs text-sky-100/90 mt-0.5">
-                Attribuez l'accès Manager global (Oubaied, etc.) et configurez les droits fins des Chefs de Zone.
+              <p className="text-xs text-blue-200 mt-0.5">
+                Créez de nouveaux accès, choisissez précisément les vues autorisées et délimitez le périmètre des données.
               </p>
             </div>
           </div>
@@ -261,547 +416,556 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
           </button>
         </div>
 
-        {/* Sub-Tabs: Espace Managers VS Droits des CDZ */}
-        <div className="bg-slate-100 dark:bg-slate-800/80 px-6 pt-3 flex items-center gap-2 border-b border-slate-200 dark:border-slate-700 shrink-0">
+        {/* Sub-Tabs: Gestion des utilisateurs VS Mots de passe */}
+        <div className="bg-slate-100 px-6 pt-2.5 flex items-center gap-2 border-b border-slate-200 shrink-0">
           <button
-            onClick={() => setActiveSubTab('managers')}
+            onClick={() => setActiveTab('users')}
             className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition flex items-center gap-2 border-t-2 ${
-              activeSubTab === 'managers'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-blue-600 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 border-transparent'
+              activeTab === 'users'
+                ? 'bg-white text-blue-600 border-blue-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 border-transparent'
             }`}
           >
-            <Crown className="w-4 h-4 text-amber-500" />
-            <span>👑 Espace Managers (Accès Global & Tout Voir)</span>
-            <span className="ml-1 px-1.5 py-0.2 text-[10px] bg-amber-100 text-amber-800 rounded-full font-bold">
-              {localManagers.length}
-            </span>
+            <Users className="w-4 h-4 text-blue-600" />
+            <span>👥 Utilisateurs, Vues & Périmètre de Données</span>
           </button>
 
           <button
-            onClick={() => setActiveSubTab('cdz')}
+            onClick={() => setActiveTab('passwords')}
             className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition flex items-center gap-2 border-t-2 ${
-              activeSubTab === 'cdz'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-blue-600 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 border-transparent'
+              activeTab === 'passwords'
+                ? 'bg-white text-blue-600 border-blue-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 border-transparent'
             }`}
           >
-            <SlidersHorizontal className="w-4 h-4 text-indigo-500" />
-            <span>👤 Droits par CDZ (Modules & Équipes)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('passwords')}
-            className={`px-4 py-2.5 text-xs font-bold rounded-t-xl transition flex items-center gap-2 border-t-2 ${
-              activeSubTab === 'passwords'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-blue-600 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 border-transparent'
-            }`}
-          >
-            <KeyRound className="w-4 h-4 text-rose-500" />
-            <span>🔑 Mots de passe</span>
+            <KeyRound className="w-4 h-4 text-indigo-600" />
+            <span>🔑 Gestion des Mots de Passe ({DEFAULT_PASSWORD_HINT})</span>
           </button>
         </div>
 
-        {/* Saved Toast */}
+        {/* Banner notification */}
         {savedBanner && (
-          <div className="bg-emerald-600 text-white text-xs font-bold px-6 py-2.5 flex items-center justify-center gap-2 animate-in slide-in-from-top-2">
-            <Check className="w-4 h-4" />
-            {savedBanner}
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold px-6 py-2.5 flex items-center justify-center gap-2 shadow-sm animate-in slide-in-from-top-2">
+            <Check className="w-4 h-4 shrink-0" />
+            <span>{savedBanner}</span>
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* CONTENU ONGLET 1 : ESPACE MANAGERS (Oubaied, Direction) */}
-        {/* ======================================================== */}
-        {activeSubTab === 'managers' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/50">
-              <div className="flex items-start gap-3">
-                <Crown className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-sm font-bold text-amber-900 dark:text-amber-200">
-                    Privilèges du Profil Manager
-                  </h3>
-                  <p className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-1 leading-relaxed">
-                    Toute personne ajoutée ci-dessous bénéficie d'une <b>visibilité totale à 360°</b> : elle accède à l'ensemble des modules (Tâches, Visites GPS, Réalisation, Frigos) et voit la totalité des données de <b>tous les Chefs de Zone et commerciaux sans restriction</b>.
-                  </p>
-                </div>
+        {/* TAB 1 : Gestion des utilisateurs, vues et données */}
+        {activeTab === 'users' && (
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+            {/* Action Bar : Bouton Créer un Nouvel Accès */}
+            <div className="flex items-center justify-between gap-4 flex-wrap bg-gradient-to-r from-blue-50 via-indigo-50 to-sky-50 p-4 rounded-2xl border border-blue-100">
+              <div>
+                <h3 className="text-sm font-bold text-blue-950 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-blue-600" />
+                  Créer un nouvel accès sur mesure
+                </h3>
+                <p className="text-xs text-blue-800/80 mt-0.5">
+                  Attribuez un identifiant avec choix exact des <strong>vues à afficher</strong> et des <strong>données visibles</strong>.
+                </p>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5"
+              >
+                <UserPlus className="w-4 h-4" />
+                {showCreateForm ? 'Masquer le formulaire' : '+ Créer un Nouvel Accès'}
+              </button>
             </div>
 
-            {/* Liste des Managers Actuels */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-600" />
-                  Managers Actuels avec Accès Global ({localManagers.length})
-                </h4>
-              </div>
+            {/* FORMULAIRE DE CRÉATION DE COMPTE */}
+            {showCreateForm && (
+              <form onSubmit={handleCreateNewAccess} className="p-5 bg-white border-2 border-blue-300 rounded-2xl shadow-lg space-y-4 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-blue-600" />
+                    Nouveau Collaborateur / Compte
+                  </h4>
+                  <span className="text-xs text-slate-500">Mot de passe par défaut : <code className="font-mono font-bold text-blue-600">{DEFAULT_PASSWORD_HINT}</code></span>
+                </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {localManagers.map((mgr) => (
-                  <div
-                    key={mgr.email}
-                    className="p-3.5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-between gap-3 group"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 font-bold text-sm text-slate-900 dark:text-white truncate">
-                        <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                        <span className="truncate">{mgr.nom}</span>
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                        {mgr.email}
-                      </div>
-                      <span className="inline-block mt-2 px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
-                        {mgr.role}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <button
-                        onClick={() => {
-                          onSelectAccessMode(mgr.email);
-                          onClose();
-                        }}
-                        className="px-2 py-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 dark:bg-blue-900/30 rounded-lg transition cursor-pointer"
-                        title="Basculer sur cette session"
-                      >
-                        Se connecter
-                      </button>
-
-                      {!['yosra.dallegi@vilavi.tn', 'yosra.dallgi@vilavi.tn'].includes(mgr.email.toLowerCase()) && (
-                        <button
-                          onClick={() => handleRemoveManager(mgr.email)}
-                          className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition cursor-pointer"
-                          title="Révoquer l'accès Manager"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nom complet</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Sami Ben Ali"
+                      value={newNom}
+                      onChange={(e) => setNewNom(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
                   </div>
-                ))}
-              </div>
-            </div>
 
-            {/* Formulaire : Ajouter un nouveau Manager (ex: Oubaiedallah, Rafik, etc.) */}
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 space-y-3">
-              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <UserPlus className="w-4 h-4 text-emerald-600" />
-                Accorder l'accès Manager à un autre collaborateur
-              </h4>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Adresse email Vilavi</label>
+                    <input
+                      type="email"
+                      placeholder="sami.benali@vilavi.tn"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
 
-              <form onSubmit={handleAddManager} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                <div className="sm:col-span-4">
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                    Sélectionner ou saisir un nom
-                  </label>
-                  <input
-                    type="text"
-                    list="collabs-datalist"
-                    placeholder="Ex: Oubaiedallah Woissoissi"
-                    value={newManagerNom}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setNewManagerNom(val);
-                      // Auto-fill email if matched
-                      const found = ALL_COLLABORATORS.find((c) => c.nom.toLowerCase() === val.toLowerCase());
-                      if (found) {
-                        setNewManagerEmail(found.email);
-                      }
-                    }}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <datalist id="collabs-datalist">
-                    {ALL_COLLABORATORS.map((c) => (
-                      <option key={c.email} value={c.nom}>{c.email}</option>
-                    ))}
-                  </datalist>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Rôle / Fonction</label>
+                    <select
+                      value={newRole}
+                      onChange={(e) => setNewRole(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                    >
+                      <option value="Chef de Zone">Chef de Zone</option>
+                      <option value="Superviseur">Superviseur</option>
+                      <option value="Manager Commercial">Manager Commercial</option>
+                      <option value="Auditeur & Contrôle">Auditeur & Contrôle</option>
+                      <option value="Direction">Direction</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div className="sm:col-span-4">
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                    Adresse e-mail Vilavi
+                {/* Choix des Vues à afficher */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-800">
+                    1. Vues (onglets) autorisées pour ce compte :
                   </label>
-                  <input
-                    type="email"
-                    placeholder="oubaiedallah.woissoissi@vilavi.tn"
-                    value={newManagerEmail}
-                    onChange={(e) => setNewManagerEmail(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {ALL_MODULES.map((mod) => {
+                      const isChecked = newModules.includes(mod.key);
+                      return (
+                        <div
+                          key={mod.key}
+                          onClick={() => {
+                            if (isChecked) {
+                              if (newModules.length > 1) {
+                                setNewModules(newModules.filter((m) => m !== mod.key));
+                              }
+                            } else {
+                              setNewModules([...newModules, mod.key]);
+                            }
+                          }}
+                          className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center gap-2 ${
+                            isChecked
+                              ? 'bg-blue-50 border-blue-300 text-blue-900 font-bold'
+                              : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'
+                          }`}
+                        >
+                          {isChecked ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4 text-slate-400" />}
+                          <span className="text-xs truncate">{mod.label.split('(')[0].trim()}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                    Titre / Rôle
+                {/* Choix du périmètre de données */}
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-800">
+                    2. Périmètre des données visibles :
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Manager"
-                    value={newManagerRole}
-                    onChange={(e) => setNewManagerRole(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label
+                      className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
+                        newIsGlobal ? 'bg-amber-50 border-amber-300 text-amber-950 font-bold shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="newScope"
+                        checked={newIsGlobal}
+                        onChange={() => setNewIsGlobal(true)}
+                        className="text-amber-600"
+                      />
+                      <div>
+                        <div className="text-xs font-bold">👑 Accès Total 360° (Manager / Direction)</div>
+                        <div className="text-[11px] text-slate-500 font-normal">Accès sans filtre à toutes les données de l'entreprise</div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`p-3 rounded-xl border flex items-center gap-3 cursor-pointer transition ${
+                        !newIsGlobal ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="newScope"
+                        checked={!newIsGlobal}
+                        onChange={() => setNewIsGlobal(false)}
+                        className="text-blue-600"
+                      />
+                      <div>
+                        <div className="text-xs font-bold">🔒 Accès Restreint par Équipe / Collaborateurs</div>
+                        <div className="text-[11px] text-slate-500 font-normal">Sélection fine des personnes dont il voit les données</div>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
-                <div className="sm:col-span-2">
+                <div className="flex items-center justify-end gap-2 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-slate-100 rounded-xl"
+                  >
+                    Annuler
+                  </button>
                   <button
                     type="submit"
-                    className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                    className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
                   >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    Ajouter
+                    <Check className="w-4 h-4" />
+                    Enregistrer ce Nouvel Accès
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* ======================================================== */}
-        {/* CONTENU ONGLET 2 : DROITS DES CDZ (Modules & Équipes)   */}
-        {/* ======================================================== */}
-        {activeSubTab === 'cdz' && (
-          <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-0">
-            {/* Left Column: CDZ List */}
-            <div className="md:col-span-4 border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-4 overflow-y-auto space-y-2">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">
-                Sélectionnez un Chef de Zone :
-              </div>
-
-              {CDZ_LIST.map((cdz) => {
-                const isSelected = selectedCdzEmail.toLowerCase() === cdz.email.toLowerCase();
-                const cdzP = localPerms[cdz.email.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[cdz.email.toLowerCase()];
-                const modCount = cdzP?.allowedModules?.length || 4;
-                const teamCount = cdzP?.allowedTeamEmails?.length || cdz.teamEmails.length;
-
-                return (
-                  <button
-                    key={cdz.email}
-                    onClick={() => setSelectedCdzEmail(cdz.email)}
-                    className={`w-full text-left p-3 rounded-2xl transition border cursor-pointer ${
-                      isSelected
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
-                        : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700/70 hover:border-blue-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm truncate">{cdz.name}</span>
-                      {currentAccessMode.toLowerCase() === cdz.email.toLowerCase() && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                          isSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          Actif
-                        </span>
-                      )}
-                    </div>
-                    <div className={`text-xs truncate mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                      {cdz.email}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 text-[11px]">
-                      <span className={`px-2 py-0.5 rounded-md font-semibold ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                      }`}>
-                        {modCount}/4 modules
-                      </span>
-                      <span className={`px-2 py-0.5 rounded-md font-semibold ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                      }`}>
-                        {teamCount} membres
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Right Column: Configuration */}
-            <div className="md:col-span-8 p-5 overflow-y-auto space-y-6">
-              {/* CDZ Profile Banner */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40">
-                <div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">
-                    Configuration active pour :
-                  </div>
-                  <div className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mt-0.5">
-                    <span>{currentCdz.name}</span>
-                    <span className="text-xs font-normal text-slate-500">({currentCdz.email})</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      onSelectAccessMode(currentCdz.email);
-                      onClose();
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5"
-                    title="Simuler ou tester la vue en tant que ce CDZ"
-                  >
-                    <UserCheck className="w-3.5 h-3.5" />
-                    Voir en tant que {currentCdz.name.split(' ')[0]}
-                  </button>
-
-                  <button
-                    onClick={handleResetCdzToDefault}
-                    className="p-1.5 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-white border border-slate-200 transition cursor-pointer"
-                    title="Rétablir les autorisations d'origine"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Part 1: Module Authorizations */}
-              <div className="space-y-3">
+            {/* Grille principale : Sélection du compte à gauche / Configuration à droite */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Colonne gauche : Liste des comptes (5 cols) */}
+              <div className="lg:col-span-5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                    <LayoutGrid className="w-4 h-4 text-blue-600" />
-                    1. Modules Autorisés pour {currentCdz.name}
-                  </div>
-                  <span className="text-xs text-slate-400">
-                    {cdzConfig.allowedModules?.length || 0} / {ALL_MODULES.length} actifs
-                  </span>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Comptes existants ({filteredUsers.length})
+                  </h4>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {ALL_MODULES.map((mod) => {
-                    const isChecked = (cdzConfig.allowedModules || []).includes(mod.key);
-                    return (
-                      <div
-                        key={mod.key}
-                        onClick={() => toggleModule(mod.key)}
-                        className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
-                          isChecked
-                            ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
-                            : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/60 opacity-60'
-                        }`}
-                      >
-                        <div className="mt-0.5">
-                          {isChecked ? (
-                            <div className="w-5 h-5 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
-                              <Check className="w-3.5 h-3.5" />
-                            </div>
-                          ) : (
-                            <div className="w-5 h-5 rounded-lg border-2 border-slate-300 dark:border-slate-600" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-slate-900 dark:text-white">
-                            {mod.label}
-                          </div>
-                          <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
-                            {mod.desc}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Part 2: Team Member Visibility */}
-              <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                      <Users className="w-4 h-4 text-purple-600" />
-                      2. Périmètre des Collaborateurs & Équipe Visible
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Cochez les personnes dont {currentCdz.name} peut voir les données (ex: Ahmed Trabelsi, Aymen Amdouni...).
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleSelectAllCollabs}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
-                    >
-                      Tout sélectionner
-                    </button>
-                    <span className="text-slate-300">·</span>
-                    <button
-                      onClick={() => {
-                        setLocalPerms((prev) => ({
-                          ...prev,
-                          [selectedCdzEmail.toLowerCase()]: {
-                            ...cdzConfig,
-                            allowedTeamEmails: [selectedCdzEmail.toLowerCase()]
-                          }
-                        }));
-                      }}
-                      className="text-xs text-slate-500 hover:text-slate-700 font-semibold cursor-pointer"
-                    >
-                      Uniquement lui-même
-                    </button>
-                  </div>
-                </div>
-
-                <div>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Filtrer un collaborateur par nom, email ou rôle (ex: Ahmed, Aymen, PRV...)"
-                    value={searchCollab}
-                    onChange={(e) => setSearchCollab(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Filtrer par nom ou email..."
+                    value={searchUser}
+                    onChange={(e) => setSearchUser(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-1 border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30">
-                  {filteredCollabs.map((collab) => {
-                    const isChecked = (cdzConfig.allowedTeamEmails || [])
-                      .map((e) => e.toLowerCase())
-                      .includes(collab.email.toLowerCase());
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {filteredUsers.map((user) => {
+                    const isSelected = editingEmail.toLowerCase() === user.email.toLowerCase();
+                    const cfg = localPerms[user.email.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[user.email.toLowerCase()];
+                    const allowedMods = cfg?.allowedModules || ['pOverview', 'pVisites', 'pMonth', 'pFrigos'];
+                    const isGlobal = cfg?.isGlobalManager || user.isManager;
 
                     return (
                       <div
-                        key={collab.email}
-                        onClick={() => toggleCollaborator(collab.email)}
-                        className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between gap-2 ${
-                          isChecked
-                            ? 'bg-purple-50/80 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800 text-slate-900 dark:text-white'
-                            : 'bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700/60 text-slate-400 opacity-60'
+                        key={user.email}
+                        onClick={() => setEditingEmail(user.email)}
+                        className={`p-3 rounded-2xl border transition cursor-pointer space-y-2 ${
+                          isSelected
+                            ? 'bg-blue-50/80 border-blue-400 shadow-sm ring-2 ring-blue-400/40'
+                            : 'bg-white hover:bg-slate-50 border-slate-200'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {isChecked ? (
-                            <CheckSquare className="w-4 h-4 text-purple-600 shrink-0" />
-                          ) : (
-                            <Square className="w-4 h-4 text-slate-300 dark:text-slate-600 shrink-0" />
-                          )}
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="text-xs font-semibold truncate leading-tight">
-                              {collab.nom}
+                            <div className="text-xs font-bold text-slate-900 truncate flex items-center gap-1.5">
+                              {user.email === 'yosra.dallegi@vilavi.tn' ? (
+                                <Crown className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              ) : isGlobal ? (
+                                <span className="text-amber-600">👑</span>
+                              ) : (
+                                <span className="text-blue-600">👤</span>
+                              )}
+                              <span className="truncate">{user.nom}</span>
                             </div>
-                            <div className="text-[10px] text-slate-400 truncate">
-                              {collab.email}
-                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">{user.email}</div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectAccessMode(user.email);
+                                setSavedBanner(`Aperçu activé : vous visualisez maintenant le dashboard tel que le voit "${user.nom}".`);
+                                setTimeout(() => setSavedBanner(null), 3500);
+                              }}
+                              className="px-2 py-1 text-[10px] font-bold bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-lg transition"
+                              title="Tester cet accès en direct"
+                            >
+                              Tester
+                            </button>
+
+                            {user.email !== 'yosra.dallegi@vilavi.tn' && user.email !== 'yosra.dallgi@vilavi.tn' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveUser(user.email);
+                                }}
+                                className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition"
+                                title="Supprimer cet accès"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
 
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
-                          collab.role === 'CDZ'
-                            ? 'bg-blue-100 text-blue-700'
-                            : collab.role === 'PRV'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {collab.role}
-                        </span>
+                        {/* Badges vues autorisées */}
+                        <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-slate-100/80 text-[10px]">
+                          <span className={`px-1.5 py-0.5 rounded font-bold ${
+                            isGlobal ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {isGlobal ? '👑 360° Total' : `🔒 ${(cfg?.allowedTeamEmails || []).length} collab.`}
+                          </span>
+
+                          <span className="text-slate-300">|</span>
+
+                          {allowedMods.map((m) => (
+                            <span key={m} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
+                              {m === 'pOverview' ? 'Tâches' : m === 'pVisites' ? 'Visites' : m === 'pMonth' ? 'Ventes' : 'Frigos'}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Colonne droite : Détails & Édition des vues et données (7 cols) */}
+              <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5">
+                {/* Header profil sélectionné */}
+                <div className="border-b border-slate-100 pb-4 flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 block mb-0.5">
+                      Configuration des droits
+                    </span>
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span>{currentEditingUser?.nom}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
+                        {currentEditingUser?.role}
+                      </span>
+                    </h3>
+                    <div className="text-xs text-slate-500 font-mono mt-0.5">{currentEditingUser?.email}</div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectAccessMode(currentEditingUser?.email);
+                      setSavedBanner(`Session basculée sur "${currentEditingUser?.nom}". Fermez le panneau pour voir.`);
+                      setTimeout(() => setSavedBanner(null), 3000);
+                    }}
+                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Tester cette vue en direct
+                  </button>
+                </div>
+
+                {/* 1. Vues autorisées */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      1. Vues (onglets) autorisées dans le tableau de bord :
+                    </label>
+                    <span className="text-[11px] text-slate-400">
+                      {(currentConfig.allowedModules || []).length} / 4 actives
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {ALL_MODULES.map((mod) => {
+                      const isAllowed = (currentConfig.allowedModules || []).includes(mod.key);
+                      return (
+                        <div
+                          key={mod.key}
+                          onClick={() => handleToggleModule(mod.key)}
+                          className={`p-3 rounded-xl border transition cursor-pointer flex items-center gap-3 ${
+                            isAllowed
+                              ? 'bg-blue-50/70 border-blue-300 text-blue-950 font-bold shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-400 opacity-60'
+                          }`}
+                        >
+                          {isAllowed ? (
+                            <CheckSquare className="w-4 h-4 text-blue-600 shrink-0" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-300 shrink-0" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-xs leading-tight">{mod.label}</div>
+                            <div className="text-[10px] text-slate-500 font-normal truncate mt-0.5">{mod.desc}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Périmètre des données visibles */}
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-800 uppercase tracking-wide block">
+                    2. Périmètre des données autorisées :
+                  </label>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleGlobalManager(true)}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                        currentConfig.isGlobalManager
+                          ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/40 text-amber-950 font-bold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1.5 font-bold">
+                        <span>👑 Accès Total 360°</span>
+                        {currentConfig.isGlobalManager && <Check className="w-3.5 h-3.5 text-amber-600" />}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                        Voit l'ensemble des données de toute l'entreprise sans restriction.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleGlobalManager(false)}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                        !currentConfig.isGlobalManager
+                          ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-400/40 text-blue-950 font-bold'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="text-xs flex items-center gap-1.5 font-bold">
+                        <span>🔒 Accès Restreint</span>
+                        {!currentConfig.isGlobalManager && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-normal mt-0.5">
+                        Restreint strictement aux collaborateurs cochés ci-dessous.
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Collaborateurs si accès restreint */}
+                  {!currentConfig.isGlobalManager && (
+                    <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="text-xs font-bold text-slate-800">
+                          Collaborateurs visibles par {currentEditingUser?.nom} ({(currentConfig.allowedTeamEmails || []).length} cochés)
+                        </div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={handleSelectAllCollabs}
+                            className="text-blue-600 hover:text-blue-800 font-bold cursor-pointer"
+                          >
+                            Tout cocher
+                          </button>
+                          <span className="text-slate-300">·</span>
+                          <button
+                            type="button"
+                            onClick={handleSelectSelfOnly}
+                            className="text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
+                          >
+                            Lui-même uniquement
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Rechercher un superviseur, prévendeur ou CDZ..."
+                          value={searchCollab}
+                          onChange={(e) => setSearchCollab(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-52 overflow-y-auto p-1 bg-white rounded-xl border border-slate-200">
+                        {filteredCollabs.map((collab) => {
+                          const isChecked = (currentConfig.allowedTeamEmails || [])
+                            .map((e) => e.toLowerCase())
+                            .includes(collab.email.toLowerCase());
+
+                          return (
+                            <div
+                              key={collab.email}
+                              onClick={() => handleToggleCollaborator(collab.email)}
+                              className={`p-2 rounded-lg border transition cursor-pointer flex items-center justify-between gap-2 ${
+                                isChecked
+                                  ? 'bg-blue-50/80 border-blue-200 text-blue-950 font-semibold'
+                                  : 'bg-white border-slate-100 text-slate-400 opacity-60'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isChecked ? <CheckSquare className="w-3.5 h-3.5 text-blue-600 shrink-0" /> : <Square className="w-3.5 h-3.5 text-slate-300 shrink-0" />}
+                                <div className="min-w-0">
+                                  <div className="text-xs truncate leading-none">{collab.nom}</div>
+                                  <div className="text-[10px] text-slate-400 truncate mt-0.5">{collab.email}</div>
+                                </div>
+                              </div>
+                              <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-slate-100 text-slate-600 shrink-0">
+                                {collab.role}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* SUB-TAB 3: Gestion des mots de passe */}
-        {activeSubTab === 'passwords' && (
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-start gap-3">
-              <KeyRound className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-              <div className="text-xs text-rose-950 leading-relaxed">
-                <strong className="font-bold">Gestion des accès et mots de passe :</strong> Chaque utilisateur Vilavi (Admin, Managers et Chefs de Zone) dispose par défaut du mot de passe initial <code className="bg-rose-200/80 px-1.5 py-0.5 rounded font-mono font-bold text-rose-900">{DEFAULT_PASSWORD_HINT}</code>. Vous pouvez définir un mot de passe personnalisé sécurisé pour chaque collaborateur ou le réinitialiser à tout moment.
+        {/* TAB 2 : Gestion des mots de passe */}
+        {activeTab === 'passwords' && (
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+            <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-sky-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
+              <KeyRound className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-blue-950 leading-relaxed">
+                <strong>Gestion des mots de passe :</strong> Chaque utilisateur dispose par défaut du mot de passe initial <code className="bg-blue-200/80 px-1.5 py-0.5 rounded font-mono font-bold text-blue-900">{DEFAULT_PASSWORD_HINT}</code>. Vous pouvez définir un mot de passe personnalisé ou le réinitialiser en un clic pour n'importe quel compte.
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Colonne gauche : Sélection de l'utilisateur */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Colonne gauche : Sélection du compte */}
               <div className="lg:col-span-5 space-y-3">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Sélectionner un compte ({1 + localManagers.length + CDZ_LIST.length})
+                  Sélectionner un compte ({allUserAccounts.length})
                 </div>
 
                 <div className="space-y-1.5 max-h-[460px] overflow-y-auto pr-1">
-                  {/* Admin */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedPwdEmail('yosra.dallegi@vilavi.tn');
-                      setNewPasswordInput('');
-                      setPwdFeedback(null);
-                    }}
-                    className={`w-full p-3 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                      selectedPwdEmail.toLowerCase() === 'yosra.dallegi@vilavi.tn'
-                        ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/50 shadow-sm'
-                        : 'bg-white hover:bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="min-w-0 pr-2">
-                      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 truncate">
-                        <Crown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Yosra Dallegi</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 truncate">yosra.dallegi@vilavi.tn</div>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md border border-amber-200 shrink-0">
-                      ADMIN
-                    </span>
-                  </button>
+                  {allUserAccounts.map((user) => {
+                    const isSelected = selectedPwdEmail.toLowerCase() === user.email.toLowerCase();
+                    const isCustom = hasCustomPassword(user.email);
 
-                  {/* Managers */}
-                  <div className="pt-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Managers</div>
-                  {localManagers.map((mgr) => {
-                    const isSelected = selectedPwdEmail.toLowerCase() === mgr.email.toLowerCase();
-                    const isCustom = hasCustomPassword(mgr.email);
                     return (
                       <button
-                        key={mgr.email}
+                        key={user.email}
                         type="button"
                         onClick={() => {
-                          setSelectedPwdEmail(mgr.email);
+                          setSelectedPwdEmail(user.email);
                           setNewPasswordInput('');
                           setPwdFeedback(null);
                         }}
                         className={`w-full p-2.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
                           isSelected
-                            ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-400/50 shadow-sm'
+                            ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/40 shadow-xs'
                             : 'bg-white hover:bg-slate-50 border-slate-200'
                         }`}
                       >
                         <div className="min-w-0 pr-2">
-                          <div className="text-xs font-semibold text-slate-900 truncate">👑 {mgr.nom}</div>
-                          <div className="text-[11px] text-slate-500 truncate">{mgr.email}</div>
+                          <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5 truncate">
+                            {user.email === 'yosra.dallegi@vilavi.tn' ? '👑 ' : '👤 '}
+                            <span className="truncate">{user.nom}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 truncate">{user.email}</div>
                         </div>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
-                          isCustom ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {isCustom ? 'Personnalisé' : 'Défaut'}
-                        </span>
-                      </button>
-                    );
-                  })}
 
-                  {/* CDZ */}
-                  <div className="pt-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Chefs de Zone</div>
-                  {CDZ_LIST.map((cdz) => {
-                    const isSelected = selectedPwdEmail.toLowerCase() === cdz.email.toLowerCase();
-                    const isCustom = hasCustomPassword(cdz.email);
-                    return (
-                      <button
-                        key={cdz.email}
-                        type="button"
-                        onClick={() => {
-                          setSelectedPwdEmail(cdz.email);
-                          setNewPasswordInput('');
-                          setPwdFeedback(null);
-                        }}
-                        className={`w-full p-2.5 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                          isSelected
-                            ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-400/50 shadow-sm'
-                            : 'bg-white hover:bg-slate-50 border-slate-200'
-                        }`}
-                      >
-                        <div className="min-w-0 pr-2">
-                          <div className="text-xs font-semibold text-slate-900 truncate">👤 {cdz.name}</div>
-                          <div className="text-[11px] text-slate-500 truncate">{cdz.email}</div>
-                        </div>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                           isCustom ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
                         }`}>
                           {isCustom ? 'Personnalisé' : 'Défaut'}
@@ -812,23 +976,19 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                 </div>
               </div>
 
-              {/* Colonne droite : Formulaire de modification */}
+              {/* Colonne droite : Formulaire mot de passe */}
               <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-5">
-                <div className="border-b border-slate-100 pb-4">
+                <div className="border-b border-slate-100 pb-3">
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Compte sélectionné
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-base font-bold text-slate-900">{selectedPwdEmail}</div>
-                      <div className="text-xs text-slate-500">
-                        Statut : {hasCustomPassword(selectedPwdEmail) ? (
-                          <span className="text-emerald-700 font-semibold">Mot de passe personnalisé défini</span>
-                        ) : (
-                          <span className="text-slate-600 font-medium">Mot de passe par défaut ({DEFAULT_PASSWORD_HINT})</span>
-                        )}
-                      </div>
-                    </div>
+                  <div className="text-base font-bold text-slate-900">{selectedPwdEmail}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    Statut actuel : {hasCustomPassword(selectedPwdEmail) ? (
+                      <span className="text-emerald-700 font-semibold">Mot de passe personnalisé actif</span>
+                    ) : (
+                      <span className="text-slate-600 font-medium">Mot de passe standard ({DEFAULT_PASSWORD_HINT})</span>
+                    )}
                   </div>
                 </div>
 
@@ -841,15 +1001,15 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
 
                 <div className="space-y-3">
                   <label className="block text-xs font-bold text-slate-700">
-                    Définir un nouveau mot de passe
+                    Définir un nouveau mot de passe pour ce compte
                   </label>
                   <div className="relative">
                     <input
                       type={showPwdInput ? 'text' : 'password'}
                       value={newPasswordInput}
                       onChange={(e) => setNewPasswordInput(e.target.value)}
-                      placeholder="Saisir le nouveau mot de passe (min. 4 car.)"
-                      className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                      placeholder="Saisir un nouveau mot de passe (min. 4 car.)"
+                      className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <button
                       type="button"
@@ -869,15 +1029,15 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                         setPwdVersion((v) => v + 1);
                         setPwdFeedback(
                           ok
-                            ? `✅ Nouveau mot de passe enregistré et synchronisé pour ${selectedPwdEmail} !`
-                            : `⚠️ Mot de passe enregistré en local pour ${selectedPwdEmail}.`
+                            ? `Nouveau mot de passe appliqué et synchronisé sur le serveur pour ${selectedPwdEmail} !`
+                            : `Mot de passe appliqué en local pour ${selectedPwdEmail}.`
                         );
                         setNewPasswordInput('');
                       }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer flex items-center gap-1.5"
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer flex items-center gap-1.5"
                     >
                       <Check className="w-3.5 h-3.5" />
-                      Appliquer le mot de passe
+                      Appliquer ce mot de passe
                     </button>
 
                     <button
@@ -886,12 +1046,11 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                         await resetUserPassword(selectedPwdEmail);
                         setPwdVersion((v) => v + 1);
                         setPwdFeedback(
-                          `✅ Mot de passe réinitialisé par défaut à « ${DEFAULT_PASSWORD_HINT} » pour ${selectedPwdEmail} (synchronisé sur le serveur).`
+                          `Mot de passe réinitialisé à "${DEFAULT_PASSWORD_HINT}" pour ${selectedPwdEmail} (synchronisé serveur).`
                         );
                         setNewPasswordInput('');
                       }}
                       className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1.5"
-                      title="Réinitialise le mot de passe de l'utilisateur à vilavi2026"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
                       Réinitialiser à {DEFAULT_PASSWORD_HINT}
@@ -900,8 +1059,8 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                 </div>
 
                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-[11px] text-slate-500 space-y-1">
-                  <div>• Tous les mots de passe sont hachés cryptographiquement en <strong>SHA-256</strong> et ne circulent jamais en clair.</div>
-                  <div>• Si vous réinitialisez, le compte réutilisera le mot de passe standard <code className="bg-slate-200 px-1 py-0.5 rounded font-mono font-bold text-slate-800">{DEFAULT_PASSWORD_HINT}</code>.</div>
+                  <div>• Hachage cryptographique SHA-256 : aucun mot de passe ne transite en clair.</div>
+                  <div>• Tous les appareils et téléphones accèdent aux mêmes mots de passe synchronisés en direct.</div>
                 </div>
               </div>
             </div>
@@ -909,10 +1068,10 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
           <div className="text-xs text-slate-500 flex items-center gap-1.5">
-            <Info className="w-4 h-4 text-blue-500" />
-            <span>Les modifications sont enregistrées localement et appliquées instantanément.</span>
+            <Info className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>Les modifications sont répercutées immédiatement sur tous les appareils connectés.</span>
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -924,10 +1083,10 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
             </button>
             <button
               onClick={handleSaveAll}
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5"
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-md shadow-blue-500/20 transition cursor-pointer flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              Enregistrer les Modifications
+              Enregistrer & Synchroniser Tout
             </button>
           </div>
         </div>

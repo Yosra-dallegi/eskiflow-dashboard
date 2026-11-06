@@ -29,15 +29,36 @@ interface VisitesTabProps {
   accessMode: string; // 'MANAGER' ou email
   customPermissions?: Record<string, CdzPermissions>;
   managerEmails?: string[];
+  filterStatutGpsList?: string[];
+  filterVisiteurs?: string[];
+  filterDateFrom?: string;
+  filterDateTo?: string;
+  searchQuery?: string;
 }
 
-export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, customPermissions, managerEmails }) => {
-  // Filters state (Multi-select)
-  const [filterStatutGpsList, setFilterStatutGpsList] = useState<string[]>([]);
-  const [filterVisiteurs, setFilterVisiteurs] = useState<string[]>([]);
-  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
-  const [filterDateTo, setFilterDateTo] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+export const VisitesTab: React.FC<VisitesTabProps> = ({
+  visites,
+  accessMode,
+  customPermissions,
+  managerEmails,
+  filterStatutGpsList: propGps,
+  filterVisiteurs: propVis,
+  filterDateFrom: propFrom,
+  filterDateTo: propTo,
+  searchQuery: propSearch
+}) => {
+  // Filters state (Multi-select) — utilise les props de la barre latérale gauche si fournis
+  const [localGps, setLocalGps] = useState<string[]>([]);
+  const [localVis, setLocalVis] = useState<string[]>([]);
+  const [localFrom, setLocalFrom] = useState<string>('');
+  const [localTo, setLocalTo] = useState<string>('');
+  const [localSearch, setLocalSearch] = useState<string>('');
+
+  const filterStatutGpsList = propGps !== undefined ? propGps : localGps;
+  const filterVisiteurs = propVis !== undefined ? propVis : localVis;
+  const filterDateFrom = propFrom !== undefined ? propFrom : localFrom;
+  const filterDateTo = propTo !== undefined ? propTo : localTo;
+  const searchQuery = propSearch !== undefined ? propSearch : localSearch;
   
   // UI View state
   const [showMap, setShowMap] = useState<boolean>(true);
@@ -393,89 +414,7 @@ export const VisitesTab: React.FC<VisitesTabProps> = ({ visites, accessMode, cus
         </div>
       )}
 
-      {/* 4. Filters Bar */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
-            <Filter className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Filtres des Visites
-          </div>
-          {(filterStatutGpsList.length > 0 || filterVisiteurs.length > 0 || filterDateFrom || filterDateTo || searchQuery) && (
-            <button
-              onClick={handleResetFilters}
-              className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1 font-medium cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Réinitialiser les filtres
-            </button>
-          )}
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
-          {/* Recherche texte */}
-          <div className="relative">
-            <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Recherche</span>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Client, code, activité..."
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Filtre Statut GPS (Multi-select) */}
-          <div>
-            <MultiSelectFilter
-              label="Statut GPS"
-              placeholder="Tous les statuts"
-              options={[
-                { value: 'Sur site', label: '✅ Sur site (Pointage valide)' },
-                { value: 'Hors zone', label: '❌ Hors zone (Écart périmètre)' },
-                { value: 'Non spécifié', label: '⚪ Non spécifié' }
-              ]}
-              selectedValues={filterStatutGpsList}
-              onChange={(vals) => { setFilterStatutGpsList(vals); setCurrentPage(1); }}
-            />
-          </div>
-
-          {/* Filtre Visiteur (Multi-select restreint à l'équipe autorisée) */}
-          <div>
-            <MultiSelectFilter
-              label={activeCdzProfile ? `Équipe CDZ (${activeCdzProfile.name})` : 'Visiteurs autorisés'}
-              placeholder="Tous les visiteurs"
-              options={availableVisitors.map((vis) => ({ value: vis.email, label: vis.nom }))}
-              selectedValues={filterVisiteurs}
-              onChange={(vals) => { setFilterVisiteurs(vals); setCurrentPage(1); }}
-            />
-          </div>
-
-          {/* Date Début */}
-          <div className="relative">
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => { setFilterDateFrom(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              title="Date début"
-            />
-          </div>
-
-          {/* Date Fin */}
-          <div className="relative">
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => { setFilterDateTo(e.target.value); setCurrentPage(1); }}
-              className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              title="Date fin"
-            />
-          </div>
-        </div>
-      </div>
 
       {/* 5. Team Synthesis Leaderboard (Collapsible / Preview) */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Mic, SlidersHorizontal, ChevronDown, Filter } from 'lucide-react';
+import { SlidersHorizontal, ChevronDown, Filter } from 'lucide-react';
 import { TaskItem, RealisationData, FrigoData, VisiteItem } from './types/task';
 import { INITIAL_TASKS, INITIAL_REALISATION, INITIAL_FRIGOS } from './data/mockData';
 import { INITIAL_VISITES } from './data/visitesData';
@@ -25,10 +25,7 @@ import { AccessDeniedScreen } from './components/AccessDeniedScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { TaskModal } from './components/TaskModal';
 import { ExcelSyncModal } from './components/ExcelSyncModal';
-import { VoiceFilterModal } from './components/VoiceFilterModal';
-import { VoiceFilterBanner } from './components/VoiceFilterBanner';
 import { PWAInstallModal } from './components/PWAInstallModal';
-import { VoiceParsedResult } from './services/voiceParser';
 import { exportTasksExcel, exportRealisationExcel, exportFrigosExcel, exportVisitesExcel } from './services/exportService';
 import { storageService } from './services/storageService';
 import { useAppUpdate } from './hooks/useAppUpdate';
@@ -248,10 +245,8 @@ export default function App() {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
   const [viewingTask, setViewingTask] = useState<TaskItem | null>(null);
   const [isExcelSyncOpen, setIsExcelSyncOpen] = useState<boolean>(false);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState<boolean>(false);
-  const [activeVoiceFilter, setActiveVoiceFilter] = useState<VoiceParsedResult | null>(null);
 
   // ==========================================
   // ISOLATION DES DONNÉES PAR ACCÈS (SCOPED DATA)
@@ -335,6 +330,13 @@ export default function App() {
   const [zRisques, setZRisques] = useState<string[]>([]);
   const [zActions, setZActions] = useState<string[]>([]);
 
+  // Visites Filters (Multi-select)
+  const [vStatutsGps, setVStatutsGps] = useState<string[]>([]);
+  const [vVisiteurs, setVVisiteurs] = useState<string[]>([]);
+  const [vDateFrom, setVDateFrom] = useState<string>('');
+  const [vDateTo, setVDateTo] = useState<string>('');
+  const [vSearch, setVSearch] = useState<string>('');
+
   // Unique options for Overview filters (dérivées UNIQUEMENT des tâches autorisées)
   const uniqueChefs = useMemo(() => {
     return Array.from(new Set(scopedTasks.map((t) => t.chef).filter(Boolean))).sort();
@@ -380,6 +382,26 @@ export default function App() {
   const uniqueFrzChefs = useMemo(() => uniqueFrzProp('chefZone'), [scopedFrigos]);
   const uniqueFrzRisques = useMemo(() => uniqueFrzProp('risque'), [scopedFrigos]);
   const uniqueFrzActions = useMemo(() => uniqueFrzProp('actions'), [scopedFrigos]);
+
+  // Unique options for Visites (dérivées des visites autorisées)
+  const scopedVisites = useMemo(() => {
+    if (isManager) return visites;
+    const authorized = getAuthorizedTeamEmails(accessMode, cdzPermissions, managerEmails);
+    if (!authorized) return visites;
+    const teamSet = new Set(authorized.map((e) => e.toLowerCase()));
+    return visites.filter((v) => {
+      const email = (v.visiteurEmail || '').toLowerCase();
+      return teamSet.has(email);
+    });
+  }, [visites, isManager, accessMode, cdzPermissions, managerEmails]);
+
+  const uniqueVisiteStatutsGps = useMemo(() => {
+    return Array.from(new Set(scopedVisites.map((v) => v.statutGps).filter(Boolean))).sort();
+  }, [scopedVisites]);
+
+  const uniqueVisiteurs = useMemo(() => {
+    return Array.from(new Set(scopedVisites.map((v) => (v.visiteurEmail || '').toLowerCase()).filter(Boolean))).sort();
+  }, [scopedVisites]);
 
   // Client references for task creation
   const existingClients = useMemo(() => {
@@ -464,45 +486,6 @@ export default function App() {
     setFilterCaMin('');
     setFilterCaMax('');
     setFilterSearch('');
-    setActiveVoiceFilter(null);
-  };
-
-  // Voice filter handlers
-  const handleApplyVoiceFilters = (result: VoiceParsedResult) => {
-    setActiveVoiceFilter(result);
-
-    if (result.isReset) {
-      handleResetOverview();
-      return;
-    }
-
-    if (result.etat) {
-      setFilterEtats([result.etat]);
-    }
-    if (result.chef) {
-      setFilterChefs([result.chef]);
-    }
-    if (result.cdr) {
-      setFilterCdrs([result.cdr]);
-    }
-    if (result.titre) {
-      setFilterTitres([result.titre]);
-    }
-    if (result.fid !== undefined) {
-      setFilterFid(result.fid);
-    }
-    if (result.search !== undefined) {
-      setFilterSearch(result.search);
-    }
-
-    if (activeTab !== 'pOverview') {
-      setActiveTab('pOverview');
-    }
-  };
-
-  const handleClearVoiceFilter = () => {
-    setActiveVoiceFilter(null);
-    handleResetOverview();
   };
 
   const handleResetReal = () => {
@@ -526,6 +509,14 @@ export default function App() {
     }
     setZRisques([]);
     setZActions([]);
+  };
+
+  const handleResetVisites = () => {
+    setVStatutsGps([]);
+    setVVisiteurs([]);
+    setVDateFrom('');
+    setVDateTo('');
+    setVSearch('');
   };
 
   const activeFiltersCount = useMemo(() => {
@@ -555,13 +546,20 @@ export default function App() {
       count += zChefs.length;
       count += zRisques.length;
       count += zActions.length;
+    } else if (activeTab === 'pVisites') {
+      count += vStatutsGps.length;
+      count += vVisiteurs.length;
+      if (vDateFrom) count++;
+      if (vDateTo) count++;
+      if (vSearch) count++;
     }
     return count;
   }, [
     activeTab, filterChefs, filterCdrs, filterTitres, filterEtats, filterFid,
     filterFrom, filterTo, filterCaMin, filterCaMax, filterSearch,
     rMoisList, rPrefs, rSearch,
-    zSerial, zStatuts, zAnnees, zContrats, zReps, zSups, zChefs, zRisques, zActions
+    zSerial, zStatuts, zAnnees, zContrats, zReps, zSups, zChefs, zRisques, zActions,
+    vStatutsGps, vVisiteurs, vDateFrom, vDateTo, vSearch
   ]);
 
   // Consultation modal handler
@@ -766,7 +764,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#E8EEF7] text-[#14213D] font-sans antialiased p-2.5 sm:p-5 pb-24 md:pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50/70 to-indigo-50/50 text-[#14213D] font-sans antialiased p-2.5 sm:p-5 pb-24 md:pb-8">
       {/* Bannière lumineuse de mise à jour si une nouvelle version est prête */}
       <UpdateNotificationBanner
         hasUpdate={hasUpdate}
@@ -797,7 +795,6 @@ export default function App() {
           onRefresh={handleRefresh}
           onExport={handleExport}
           onOpenExcelSync={isAdmin ? () => setIsExcelSyncOpen(true) : undefined}
-          onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
           onOpenInstallModal={isAdmin ? () => setIsInstallModalOpen(true) : undefined}
           onOpenAccessControl={isAdmin ? () => setIsAccessModalOpen(true) : undefined}
           isAutonome={true}
@@ -922,6 +919,19 @@ export default function App() {
                 setZActions={setZActions}
                 uniqueFrzActions={uniqueFrzActions}
                 onResetFrigos={handleResetFrigos}
+                vStatutsGps={vStatutsGps}
+                setVStatutsGps={setVStatutsGps}
+                uniqueVisiteStatutsGps={uniqueVisiteStatutsGps}
+                vVisiteurs={vVisiteurs}
+                setVVisiteurs={setVVisiteurs}
+                uniqueVisiteurs={uniqueVisiteurs}
+                vDateFrom={vDateFrom}
+                setVDateFrom={setVDateFrom}
+                vDateTo={vDateTo}
+                setVDateTo={setVDateTo}
+                vSearch={vSearch}
+                setVSearch={setVSearch}
+                onResetVisites={handleResetVisites}
               />
             </div>
           )}
@@ -993,25 +1003,30 @@ export default function App() {
               setZActions={setZActions}
               uniqueFrzActions={uniqueFrzActions}
               onResetFrigos={handleResetFrigos}
+              vStatutsGps={vStatutsGps}
+              setVStatutsGps={setVStatutsGps}
+              uniqueVisiteStatutsGps={uniqueVisiteStatutsGps}
+              vVisiteurs={vVisiteurs}
+              setVVisiteurs={setVVisiteurs}
+              uniqueVisiteurs={uniqueVisiteurs}
+              vDateFrom={vDateFrom}
+              setVDateFrom={setVDateFrom}
+              vDateTo={vDateTo}
+              setVDateTo={setVDateTo}
+              vSearch={vSearch}
+              setVSearch={setVSearch}
+              onResetVisites={handleResetVisites}
             />
           </div>
 
           {/* Main Content Area */}
           <main className="min-w-0">
             {activeTab === 'pOverview' && (
-              <>
-                <VoiceFilterBanner
-                  activeVoiceFilter={activeVoiceFilter}
-                  onClear={handleClearVoiceFilter}
-                  onOpenVoiceModal={() => setIsVoiceModalOpen(true)}
-                  totalFiltered={filteredTasks.length}
-                />
-                <OverviewTab
-                  tasks={filteredTasks}
-                  allTasksCount={scopedTasks.length}
-                  onConsultTask={handleConsultTask}
-                />
-              </>
+              <OverviewTab
+                tasks={filteredTasks}
+                allTasksCount={scopedTasks.length}
+                onConsultTask={handleConsultTask}
+              />
             )}
 
             {activeTab === 'pMonth' && (
@@ -1046,6 +1061,11 @@ export default function App() {
                 accessMode={accessMode}
                 customPermissions={cdzPermissions}
                 managerEmails={managerEmails}
+                filterStatutGpsList={vStatutsGps}
+                filterVisiteurs={vVisiteurs}
+                filterDateFrom={vDateFrom}
+                filterDateTo={vDateTo}
+                searchQuery={vSearch}
               />
             )}
           </main>
@@ -1073,23 +1093,6 @@ export default function App() {
           currentFrigosCount={scopedFrigos.length}
         />
 
-        {/* Voice Filter & AI Assistant Modal */}
-        <VoiceFilterModal
-          isOpen={isVoiceModalOpen}
-          onClose={() => setIsVoiceModalOpen(false)}
-          onApplyFilters={handleApplyVoiceFilters}
-          uniqueChefs={uniqueChefs}
-          uniqueCdrs={uniqueCdrs}
-          uniqueTitres={uniqueTitres}
-          tasks={scopedTasks}
-          realisation={scopedRealisation}
-          frigos={scopedFrigos}
-          visites={visites}
-          activeTab={activeTab}
-          onSwitchTab={(tab) => setActiveTab(tab)}
-          accessMode={accessMode}
-        />
-
         {/* PWA / Mobile Install Modal */}
         <PWAInstallModal
           isOpen={isInstallModalOpen}
@@ -1107,24 +1110,6 @@ export default function App() {
           managersList={managersList}
           onSaveManagersList={handleSaveManagersList}
         />
-
-        {/* Floating Assistant Vocal / Agent IA Button */}
-        <button
-          onClick={() => setIsVoiceModalOpen(true)}
-          className="fixed bottom-20 right-3.5 md:bottom-6 md:right-6 z-40 flex items-center gap-2 md:gap-2.5 px-3 py-2 md:px-4 md:py-3 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer border border-white/20 group"
-          title="Agent IA & Assistant Vocal EskiFlow — Posez n'importe quelle question sur le dashboard"
-        >
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-            <Mic className="w-4 h-4 text-white group-hover:animate-pulse" />
-          </div>
-          <div className="text-left pr-1">
-            <div className="text-xs font-bold leading-tight flex items-center gap-1.5">
-              <span>Agent IA</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            </div>
-            <div className="text-[10px] text-sky-100 font-medium">Questions & Données 360°</div>
-          </div>
-        </button>
       </div>
     </div>
   );

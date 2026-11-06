@@ -233,6 +233,9 @@ export type ModuleKey = 'pOverview' | 'pVisites' | 'pMonth' | 'pFrigos';
 export interface CdzPermissions {
   allowedModules: ModuleKey[];
   allowedTeamEmails: string[];
+  isGlobalManager?: boolean;
+  nom?: string;
+  role?: string;
 }
 
 export interface Collaborateur {
@@ -437,12 +440,23 @@ export function isModuleAllowed(
   if (!accessMode || accessMode === 'MANAGER') return true;
   const email = accessMode.toLowerCase();
 
-  const effectiveManagers = (managerEmails || DEFAULT_MANAGERS.map((m) => m.email)).map((e) => e.toLowerCase());
-  if (effectiveManagers.includes(email)) {
-    return true; // Managers ont accès à tous les modules
+  // Admin exclusif
+  if (email === 'yosra.dallegi@vilavi.tn' || email === 'yosra.dallgi@vilavi.tn') return true;
+
+  // 1. Permissions personnalisées explicites
+  const userPerm = customPermissions?.[email];
+  if (userPerm?.allowedModules && Array.isArray(userPerm.allowedModules)) {
+    return userPerm.allowedModules.includes(moduleKey);
   }
 
-  const perms = (customPermissions && customPermissions[email]) || DEFAULT_CDZ_PERMISSIONS[email];
+  // 2. Managers par défaut
+  const effectiveManagers = (managerEmails || DEFAULT_MANAGERS.map((m) => m.email)).map((e) => e.toLowerCase());
+  if (effectiveManagers.includes(email) && (!userPerm || userPerm.isGlobalManager !== false)) {
+    return true;
+  }
+
+  // 3. Permissions CDZ par défaut
+  const perms = DEFAULT_CDZ_PERMISSIONS[email];
   if (!perms) return true;
   return perms.allowedModules.includes(moduleKey);
 }
@@ -463,7 +477,8 @@ export function isVisitorVisible(
 }
 
 /**
- * Filtre de sécurité universel : vérifie si un enregistrement appartient au périmètre d'un CDZ connecté
+ * Filtre de sécurité universel : vérifie si un enregistrement appartient au périmètre autorisé
+ * Fonctionne pour les CDZ, Superviseurs, Managers et NOUVEAUX utilisateurs créés.
  */
 export function isRecordAuthorizedForCdz(
   record: {
@@ -482,61 +497,78 @@ export function isRecordAuthorizedForCdz(
 ): boolean {
   if (!accessMode || accessMode === 'MANAGER') return true;
   const em = accessMode.trim().toLowerCase();
+
+  // 1. Admin : visibilité totale à 360°
+  if (em === 'yosra.dallegi@vilavi.tn' || em === 'yosra.dallgi@vilavi.tn') return true;
+
+  // 2. Vérifier si l'utilisateur a des permissions explicites avec accès 360°
+  const userPerm = customPermissions?.[em];
+  if (userPerm?.isGlobalManager === true) {
+    return true;
+  }
+
+  // 3. Si c'est un manager standard sans restriction explicite
   const effectiveManagers = (managerEmails || DEFAULT_MANAGERS.map((m) => m.email)).map((e) => e.toLowerCase());
-  if (effectiveManagers.includes(em)) return true;
+  if (effectiveManagers.includes(em) && (!userPerm || userPerm.isGlobalManager !== false)) {
+    return true;
+  }
 
+  // 4. Déterminer les emails d'équipe / collaborateurs autorisés
+  const allowedEmails = userPerm?.allowedTeamEmails || DEFAULT_CDZ_PERMISSIONS[em]?.allowedTeamEmails;
   const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === em);
-  if (!cdz) return false;
 
-  // 1. Chef de zone match direct, alias OU un des superviseurs rattachés à ce CDZ
+  if (!cdz && (!allowedEmails || allowedEmails.length === 0)) {
+    // Nouvel utilisateur sans configuration d'équipe -> ne voit rien d'autre que lui-même
+    if (record.visiteurEmail && record.visiteurEmail.toLowerCase() === em) return true;
+    if (record.realisePar && record.realisePar.toLowerCase() === em) return true;
+    return false;
+  }
+
+  const teamEmailsList = (allowedEmails && allowedEmails.length > 0) ? allowedEmails : (cdz ? cdz.teamEmails : [em]);
+  const allowedSet = new Set(teamEmailsList.map((e) => e.toLowerCase()));
+
+  // Construire la liste des noms et alias de collaborateurs autorisés
+  const allowedNames: string[] = [];
+  if (cdz) {
+    allowedNames.push(cdz.name.toLowerCase());
+    cdz.aliases.forEach((a) => allowedNames.push(a.toLowerCase()));
+    cdz.supervisors.forEach((s) => allowedNames.push(s.toLowerCase()));
+  }
+  ALL_COLLABORATORS.forEach((collab) => {
+    if (allowedSet.has(collab.email.toLowerCase())) {
+      allowedNames.push(collab.nom.toLowerCase());
+      const baseName = collab.nom.replace(/\s*\([^)]*\)/, '').trim().toLowerCase();
+      if (baseName) allowedNames.push(baseName);
+    }
+  });
+
+  // A. Vérification par chef de zone / colonne chef
   if (record.chefZone) {
     const cz = record.chefZone.trim().toLowerCase();
-    if (
-      cdz.aliases.some((a) => a.toLowerCase() === cz) ||
-      cz === cdz.name.toLowerCase() ||
-      cdz.supervisors.some((s) => s.toLowerCase() === cz)
-    ) {
-      return true;
-    }
+    if (allowedNames.some((n) => cz.includes(n) || n.includes(cz))) return true;
   }
 
-  // 2. Superviseur match (gère rigoureusement les comptes normaux et comptes _BIS !)
+  // B. Vérification par superviseur
   if (record.superviseur) {
     const sup = record.superviseur.trim().toLowerCase();
-    if (
-      cdz.supervisors.some((s) => s.toLowerCase() === sup) ||
-      cdz.aliases.some((a) => a.toLowerCase() === sup)
-    ) {
-      return true;
-    }
+    if (allowedNames.some((n) => sup.includes(n) || n.includes(sup))) return true;
   }
 
-  // 3. Email match (visiteur, realisePar, demandeur)
-  const allowedEmails = getAuthorizedTeamEmails(accessMode, customPermissions, managerEmails) || cdz.teamEmails;
-  const allowedSet = new Set(allowedEmails.map((e) => e.toLowerCase()));
+  // C. Vérification par email direct (visiteurEmail, realisePar, demandeur)
+  if (record.visiteurEmail && allowedSet.has(record.visiteurEmail.toLowerCase())) return true;
+  if (record.realisePar && allowedSet.has(record.realisePar.toLowerCase())) return true;
+  if (record.demandeur && allowedSet.has(record.demandeur.toLowerCase())) return true;
 
-  if (record.visiteurEmail && allowedSet.has(record.visiteurEmail.toLowerCase())) {
-    return true;
-  }
-  if (record.realisePar && allowedSet.has(record.realisePar.toLowerCase())) {
-    return true;
-  }
-  if (record.demandeur && allowedSet.has(record.demandeur.toLowerCase())) {
-    return true;
+  // D. Vérification par nom visiteur
+  if (record.visiteurNom) {
+    const vn = record.visiteurNom.trim().toLowerCase();
+    if (allowedNames.some((n) => vn.includes(n) || n.includes(vn))) return true;
   }
 
-  // 4. Membres / PRVs match
+  // E. Vérification par repr / commercial
   if (record.repr) {
     const rep = record.repr.trim().toLowerCase();
-    if (cdz.prvs.some((p) => (p.code && rep.includes(p.code.toLowerCase())) || (p.nom && rep.includes(p.nom.toLowerCase())))) {
-      return true;
-    }
-    if (cdz.members.some((m) => m.nom.toLowerCase() === rep || (m.codePrv && rep.includes(m.codePrv.toLowerCase())))) {
-      return true;
-    }
-    if (cdz.supervisors.some((s) => s.toLowerCase() === rep)) {
-      return true;
-    }
+    if (allowedNames.some((n) => rep.includes(n) || n.includes(rep))) return true;
   }
 
   return false;
