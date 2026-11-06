@@ -126,13 +126,33 @@ export default function App() {
     }
   }, [accessMode]);
 
+  // Admin exclusif : yosra.dallegi@vilavi.tn (gère aussi l'alias yosra.dallgi@vilavi.tn)
+  const ADMIN_EMAILS = ['yosra.dallegi@vilavi.tn', 'yosra.dallgi@vilavi.tn'];
+  const isAdmin = ADMIN_EMAILS.includes((accessMode || '').toLowerCase());
+  // Export réservé à l'admin uniquement
+  const canExport = isAdmin;
+
+  // Est-ce un accès à 360° total (sans restriction de données) ?
+  // Les permissions explicites dans cdzPermissions font autorité absolue !
+  const isGlobalUser = useMemo(() => {
+    if (!accessMode) return false;
+    if (accessMode === 'MANAGER') return true;
+    const em = accessMode.trim().toLowerCase();
+    if (ADMIN_EMAILS.includes(em)) return true;
+
+    const perm = cdzPermissions[em];
+    if (perm && perm.isGlobalManager !== undefined) {
+      return perm.isGlobalManager === true;
+    }
+
+    // Sinon, vérifier si l'email fait partie des managers par défaut
+    return (managersList || []).some((m) => m?.email && m.email.toLowerCase() === em);
+  }, [accessMode, cdzPermissions, managersList]);
+
   // Vérification de sécurité formelle : L'email est-il autorisé ?
   const isManager = useMemo(() => {
-    return (
-      accessMode === 'MANAGER' ||
-      (managersList || []).some((m) => m?.email && m.email.toLowerCase() === (accessMode || '').toLowerCase())
-    );
-  }, [accessMode, managersList]);
+    return isGlobalUser;
+  }, [isGlobalUser]);
 
   const isCdz = useMemo(() => {
     return CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === (accessMode || '').toLowerCase());
@@ -144,12 +164,6 @@ export default function App() {
   }, [accessMode, cdzPermissions]);
 
   const isAuthorized = isManager || isCdz || isCustomUser;
-
-  // Admin exclusif : yosra.dallegi@vilavi.tn (gère aussi l'alias yosra.dallgi@vilavi.tn)
-  const ADMIN_EMAILS = ['yosra.dallegi@vilavi.tn', 'yosra.dallgi@vilavi.tn'];
-  const isAdmin = ADMIN_EMAILS.includes((accessMode || '').toLowerCase());
-  // Export réservé à l'admin uniquement
-  const canExport = isAdmin;
 
   const handleSaveCdzPermissions = (updated: Record<string, CdzPermissions>) => {
     setCdzPermissions(updated);
@@ -165,19 +179,28 @@ export default function App() {
     setAccessMode(mode);
     storageService.saveAccessMode(mode);
     const modeLower = (mode || '').toLowerCase();
-    const isMgr =
+    const perm = cdzPermissions[modeLower] || DEFAULT_CDZ_PERMISSIONS[modeLower];
+    const isGlobal =
       mode === 'MANAGER' ||
-      (managersList || []).some((m) => m?.email && m.email.toLowerCase() === modeLower);
-    if (!isMgr) {
+      ADMIN_EMAILS.includes(modeLower) ||
+      (perm && perm.isGlobalManager !== undefined
+        ? perm.isGlobalManager === true
+        : (managersList || []).some((m) => m?.email && m.email.toLowerCase() === modeLower));
+
+    if (!isGlobal) {
       const cdz = CDZ_LIST.find((c) => c?.email && c.email.toLowerCase() === modeLower);
       if (cdz) {
         setFilterChefs([cdz.name]);
         setZChefs([cdz.name]);
+      } else {
+        setFilterChefs([]);
+        setZChefs([]);
       }
-      // Si l'onglet actuel n'est pas autorisé pour ce CDZ, basculer sur son 1er module autorisé
-      const perms = cdzPermissions[modeLower] || DEFAULT_CDZ_PERMISSIONS[modeLower];
-      if (perms && !perms.allowedModules.includes(activeTab)) {
-        setActiveTab(perms.allowedModules[0] || 'pOverview');
+      // Si l'onglet actuel n'est pas autorisé pour ce profil, basculer sur son 1er module autorisé
+      if (perm && Array.isArray(perm.allowedModules) && perm.allowedModules.length > 0) {
+        if (!perm.allowedModules.includes(activeTab)) {
+          setActiveTab(perm.allowedModules[0] || 'pOverview');
+        }
       }
     } else {
       setFilterChefs([]);
@@ -199,15 +222,18 @@ export default function App() {
     });
   }, []);
 
-  // Garde-fou automatique : si un CDZ est connecté, forcer l'accès uniquement à ses modules autorisés
+  // Garde-fou automatique : si un utilisateur a des vues restreintes, forcer l'accès uniquement à ses modules autorisés
   useEffect(() => {
-    if (isCdz && accessMode) {
-      const perms = cdzPermissions[accessMode.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[accessMode.toLowerCase()];
-      if (perms && Array.isArray(perms.allowedModules) && !perms.allowedModules.includes(activeTab)) {
-        setActiveTab(perms.allowedModules[0] || 'pOverview');
+    if (!isAdmin && accessMode) {
+      const em = accessMode.trim().toLowerCase();
+      const perms = cdzPermissions[em] || DEFAULT_CDZ_PERMISSIONS[em];
+      if (perms && Array.isArray(perms.allowedModules) && perms.allowedModules.length > 0) {
+        if (!perms.allowedModules.includes(activeTab)) {
+          setActiveTab(perms.allowedModules[0] || 'pOverview');
+        }
       }
     }
-  }, [accessMode, isCdz, cdzPermissions, activeTab]);
+  }, [accessMode, isAdmin, cdzPermissions, activeTab]);
 
   // Hydrate from IndexedDB on startup & auto-fetch full dataset if empty or mock
   useEffect(() => {
@@ -821,15 +847,16 @@ export default function App() {
           onAccessModeChange={handleAccessModeChange}
           managersList={managersList}
           allowedModules={
-            accessMode !== 'MANAGER' &&
-            !(managersList || []).some(
-              (m) => m?.email && m.email.toLowerCase() === (accessMode || '').toLowerCase()
-            )
-              ? (
-                  cdzPermissions[(accessMode || '').toLowerCase()] ||
-                  DEFAULT_CDZ_PERMISSIONS[(accessMode || '').toLowerCase()]
-                )?.allowedModules
-              : undefined
+            (() => {
+              if (isAdmin) return undefined;
+              const em = (accessMode || '').trim().toLowerCase();
+              const perm = cdzPermissions[em] || DEFAULT_CDZ_PERMISSIONS[em];
+              if (perm && Array.isArray(perm.allowedModules)) {
+                return perm.allowedModules;
+              }
+              if (isGlobalUser) return undefined;
+              return ['pOverview', 'pVisites', 'pMonth', 'pFrigos'];
+            })()
           }
           lastMaj={lastMaj}
           onRefresh={handleRefresh}
