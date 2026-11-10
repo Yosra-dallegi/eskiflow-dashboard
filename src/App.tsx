@@ -601,7 +601,7 @@ export default function App() {
       count += filterCdrs.length;
       count += filterTitres.length;
       count += filterEtats.length;
-      count += filterDemandeurs ? filterDemandeurs.length : 0;
+      count += filterDemandeurs?.length ?? 0;
       if (filterFid) count++;
       if (filterFrom) count++;
       if (filterTo) count++;
