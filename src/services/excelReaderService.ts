@@ -73,7 +73,7 @@ import { CDZ_LIST, getCdzByZoneOrEmail } from '../data/cdzData';
 
 // --- 1. Parser pour Tâches & Clients ---
 
-export function parseTasksExcel(workbook: XLSX.WorkBook): TaskItem[] {
+export function parseTasksExcel(workbook: XLSX.WorkBook, externalClientsIndex?: Record<string, any>): TaskItem[] {
   const sheetNames = workbook.SheetNames;
   // Détection prioritaire de la feuille nommée 'tache' ou 'taches'
   const taskSheetName =
@@ -96,7 +96,7 @@ export function parseTasksExcel(workbook: XLSX.WorkBook): TaskItem[] {
     return o;
   });
 
-  let clientsIndex: Record<string, any> = {};
+  let clientsIndex: Record<string, any> = { ...(externalClientsIndex || {}) };
   const clientSheetName = sheetNames.find(
     (s) => s.toLowerCase().includes('client') || s.toLowerCase().includes('base')
   );
@@ -229,18 +229,91 @@ export function parseTasksExcel(workbook: XLSX.WorkBook): TaskItem[] {
 
 /**
  * Charge immédiatement les tâches depuis le fichier CSV statique en cas de délai / panne serveur
+ * Réconcilie automatiquement avec la base clients statique (9 000+ clients)
  */
 export async function loadTasksFromStaticCsv(): Promise<TaskItem[]> {
   try {
+    let clientsIndex: Record<string, any> = {};
+    try {
+      const clRes = await fetch('/data/clients_base_cache.xlsx');
+      if (clRes.ok) {
+        const clBuf = await clRes.arrayBuffer();
+        const clWb = XLSX.read(clBuf, { type: 'buffer' });
+        const clSheetName = clWb.SheetNames.find((s) => s.toLowerCase().includes('client') || s.toLowerCase().includes('base')) || clWb.SheetNames[0];
+        const clSheet = clWb.Sheets[clSheetName];
+        if (clSheet) {
+          const rawClData: any[][] = XLSX.utils.sheet_to_json(clSheet, { header: 1 });
+          if (rawClData.length >= 2) {
+            const clHeads = (rawClData[0] || []).map(norm);
+            const kCode = findCol(clHeads, 'code_client', 'client_code', 'code');
+            const kChef = findCol(clHeads, 'nom_chef_zone', 'chef_zone', 'chef');
+            const kCdr = findCol(clHeads, 'des_delegation', 'cdr', 'delegation');
+            const kRepr = findCol(clHeads, 'nom_rep', 'repr_nom', 'representant');
+            const kNom = findCol(clHeads, 'raison_social', 'client_nom', 'nom');
+            const kCa25 = findCol(clHeads, 'ca_2025', 'ca_ttc_sell_out_2025');
+            const kCa26 = findCol(clHeads, 'ca_2026', 'ca_ttc_sell_out_2026');
+            const kStatut = findCol(clHeads, 'statut');
+            const kDins = findCol(clHeads, 'date_inscription', 'date_insc');
+            const kLat = findCol(clHeads, 'latitude', 'lat');
+            const kLng = findCol(clHeads, 'longitude', 'lng');
+            const kHab = findCol(clHeads, 'etat_d_avancement_habillage', 'habillage');
+
+            rawClData.slice(1).forEach((r) => {
+              const o: Record<string, any> = {};
+              clHeads.forEach((h, i) => { if (h) o[h] = r[i]; });
+              const code = cleCode(kCode ? o[kCode] : '');
+              if (code) {
+                const entry = {
+                  chef: String(kChef ? o[kChef] || '' : '').trim(),
+                  cdr: String(kCdr ? o[kCdr] || '' : '').trim(),
+                  repr: String(kRepr ? o[kRepr] || '' : '').trim(),
+                  nom: String(kNom ? o[kNom] || '' : '').trim(),
+                  ca25: kCa25 ? num(o[kCa25]) : 0,
+                  ca26: kCa26 ? num(o[kCa26]) : 0,
+                  statut: String(kStatut ? o[kStatut] || '' : '').trim(),
+                  dateInsc: kDins ? isoDate(o[kDins]) : '',
+                  inscrit: kDins ? String(o[kDins] || '').trim() !== '' : false,
+                  lat: kLat ? num(o[kLat]) : 0,
+                  lng: kLng ? num(o[kLng]) : 0,
+                  habillage: String(kHab ? o[kHab] || '' : '').trim()
+                };
+                clientsIndex[code] = entry;
+                const unpadded = code.replace(/^0+/, '');
+                if (unpadded && unpadded !== code) clientsIndex[unpadded] = entry;
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Erreur chargement clients_base_cache:', e);
+    }
+
     const res = await fetch('/data/eskiflow_taches.csv');
     if (!res.ok) return [];
     const text = await res.text();
     if (!text || text.length < 50) return [];
     const wb = XLSX.read(text, { type: 'string' });
-    return parseTasksExcel(wb);
+    return parseTasksExcel(wb, clientsIndex);
   } catch (e) {
     console.warn('Failed to load tasks from static CSV:', e);
     return [];
+  }
+}
+
+/**
+ * Charge immédiatement les frigos depuis le fichier cache statique (7 100+ frigos)
+ */
+export async function loadFrigosFromStaticCache(): Promise<FrigoData | null> {
+  try {
+    const res = await fetch('/data/frigos_cache.xlsx');
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'buffer' });
+    return parseFrigosExcel(wb, 'FREEZER_LISTING');
+  } catch (e) {
+    console.warn('Failed to load frigos from static cache:', e);
+    return null;
   }
 }
 

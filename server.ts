@@ -16,7 +16,8 @@ const CONFIG_DRIVE = {
   FRIGOS_FILE_ID: '1L8O1npeycGhvF-Rohc3dK67FbQMoV9oh',
   FRIGOS_SHEET: 'FREEZER_LISTING',
   CLIENTS_FILE_ID: '14g_5J2EDKs48CUGGdvHGPOhnuRhmx2mw',
-  TASKS_FILE_ID: process.env.TASKS_FILE_ID || '',
+  TASKS_FILE_ID: process.env.TASKS_FILE_ID || '1VwA9HBrPxmdgarXdBIHEmivx1JgYfvQ3vzpEqZYCexE',
+  TASKS_GID: '2091396533',
   REALISATION_FILE_ID: '1l4kAb0Ef-JCfr8dRIPSVYkEaa2S8Gsh3'
 };
 
@@ -124,7 +125,7 @@ const FRZ_CHAMPS: Record<string, string[]> = {
 };
 
 // Function to download file from Google Drive via Node.js
-async function downloadDriveFileBuffer(fileId: string, authHeader?: string): Promise<Buffer> {
+async function downloadDriveFileBuffer(fileId: string, authHeader?: string, gid?: string): Promise<Buffer> {
   const headers: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
   };
@@ -132,40 +133,50 @@ async function downloadDriveFileBuffer(fileId: string, authHeader?: string): Pro
     headers['Authorization'] = authHeader;
   }
 
-  // 1. Try Google Drive API if token provided
-  if (authHeader) {
-    const apiRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers });
-    if (apiRes.ok) {
-      const arr = await apiRes.arrayBuffer();
-      return Buffer.from(arr);
+  // 1. Priorité Google Sheets : export direct CSV (avec gid si fourni) ou XLSX
+  try {
+    const exportUrl = gid
+      ? `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv&gid=${gid}`
+      : `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
+    const exportRes = await fetch(exportUrl, { headers, redirect: 'follow' });
+    if (exportRes.ok) {
+      const expArr = await exportRes.arrayBuffer();
+      const expBuf = Buffer.from(expArr);
+      const sample = expBuf.subarray(0, 100).toString('utf-8');
+      if (!sample.includes('<!DOCTYPE html>') && !sample.includes('<html')) {
+        return expBuf;
+      }
     }
-  }
+  } catch (e) {}
 
   // 2. Try direct download URL with virus scan bypass confirm=t
-  const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
-  const res = await fetch(directUrl, { headers, redirect: 'follow' });
-  
-  if (res.ok) {
-    const arr = await res.arrayBuffer();
-    const buf = Buffer.from(arr);
-    const firstChars = buf.subarray(0, 100).toString('utf-8');
-    if (firstChars.includes('<!DOCTYPE html>') || firstChars.includes('<html')) {
-      // 3. Try Google Sheets export endpoint (if it is a Google Spreadsheet)
-      const exportUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
-      const exportRes = await fetch(exportUrl, { headers, redirect: 'follow' });
-      if (exportRes.ok) {
-        const expArr = await exportRes.arrayBuffer();
-        const expBuf = Buffer.from(expArr);
-        if (!expBuf.subarray(0, 100).toString('utf-8').includes('<!DOCTYPE html>')) {
-          return expBuf;
-        }
+  try {
+    const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+    const res = await fetch(directUrl, { headers, redirect: 'follow' });
+    if (res.ok) {
+      const arr = await res.arrayBuffer();
+      const buf = Buffer.from(arr);
+      const firstChars = buf.subarray(0, 100).toString('utf-8');
+      if (!firstChars.includes('<!DOCTYPE html>') && !firstChars.includes('<html')) {
+        return buf;
       }
-      throw new Error("Le fichier Google Drive n'est pas configuré en accès partagé ('Tous les utilisateurs disposant du lien'). Veuillez passer le partage du fichier en 'Tous les utilisateurs disposant du lien' dans Google Drive.");
     }
-    return buf;
-  }
+  } catch (e) {}
 
-  throw new Error(`Échec du téléchargement Google Drive (Status: ${res.status})`);
+  // 3. Fallback to format=xlsx
+  try {
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
+    const exportRes = await fetch(exportUrl, { headers, redirect: 'follow' });
+    if (exportRes.ok) {
+      const expArr = await exportRes.arrayBuffer();
+      const expBuf = Buffer.from(expArr);
+      if (!expBuf.subarray(0, 100).toString('utf-8').includes('<!DOCTYPE html>')) {
+        return expBuf;
+      }
+    }
+  } catch (e) {}
+
+  throw new Error(`Échec du téléchargement Google Drive (${fileId})`);
 }
 
 // =========================================================================
@@ -304,22 +315,31 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
         }
       }
 
-      // 2. Download Tasks from tasksFileId (if specified) OR load from local Eskiflow file
+      // 2. Download Tasks from tasksFileId OR default Google Sheet (10 000+ tâches)
       let rawTaskData: any[][] = [];
       let taskSourceUsed = '';
 
-      if (tasksFileId) {
+      const effectiveTasksFileId = tasksFileId || CONFIG_DRIVE.TASKS_FILE_ID;
+      if (effectiveTasksFileId) {
         try {
-          const taskBuffer = await downloadDriveFileBuffer(tasksFileId, authHeader);
-          const taskWb = XLSX.read(taskBuffer, { type: 'buffer' });
+          const taskBuffer = await downloadDriveFileBuffer(effectiveTasksFileId, authHeader, CONFIG_DRIVE.TASKS_GID);
+          const isCsv = taskBuffer.subarray(0, 100).toString('utf-8').includes('ID_Tache') || taskBuffer.subarray(0, 50).toString('utf-8').includes(',');
+          const taskWb = isCsv
+            ? XLSX.read(taskBuffer.toString('utf-8'), { type: 'string' })
+            : XLSX.read(taskBuffer, { type: 'buffer' });
           const taskSheetName = taskWb.SheetNames.find((s) => s.toLowerCase().includes('tach')) || taskWb.SheetNames[0];
           const taskSheet = taskWb.Sheets[taskSheetName];
           if (taskSheet) {
             rawTaskData = XLSX.utils.sheet_to_json(taskSheet, { header: 1 });
-            taskSourceUsed = `Google Drive (${tasksFileId} - ${taskSheetName})`;
+            taskSourceUsed = `Google Sheet (${effectiveTasksFileId} - ${taskSheetName})`;
+            // Sauvegarder dans le cache local pour accélérer les prochains redémarrages
+            try {
+              const cacheCsvPath = path.resolve(__dirname, 'public/data/eskiflow_taches.csv');
+              fs.writeFileSync(cacheCsvPath, isCsv ? taskBuffer : XLSX.utils.sheet_to_csv(taskSheet));
+            } catch {}
           }
         } catch (err: any) {
-          console.warn('Erreur lecture Drive pour tâches, recours au fichier Eskiflow local:', err.message);
+          console.warn('Erreur lecture Drive pour tâches, recours au cache local:', err.message);
         }
       }
 
@@ -544,7 +564,25 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
     // -------------------------------------------------------------
     const fileId = (req.query.fileId as string) || CONFIG_DRIVE.FRIGOS_FILE_ID;
     const sheetParam = (req.query.sheet as string) || CONFIG_DRIVE.FRIGOS_SHEET;
-    const buffer = await downloadDriveFileBuffer(fileId, authHeader);
+    let buffer: Buffer | null = null;
+    try {
+      buffer = await downloadDriveFileBuffer(fileId, authHeader);
+      if (buffer && buffer.length > 10000) {
+        try {
+          const frzCachePath = path.resolve(__dirname, 'public/data/frigos_cache.xlsx');
+          fs.writeFileSync(frzCachePath, buffer);
+        } catch {}
+      }
+    } catch (err: any) {
+      console.warn('Erreur download Drive frigos, essai du cache local:', err.message);
+      const frzCachePath = path.resolve(__dirname, 'public/data/frigos_cache.xlsx');
+      if (fs.existsSync(frzCachePath)) {
+        buffer = fs.readFileSync(frzCachePath);
+      }
+    }
+    if (!buffer) {
+      throw new Error("Impossible de télécharger le fichier des frigos.");
+    }
     const workbook = XLSX.read(buffer, { type: 'buffer' });
 
     const sheetNames = workbook.SheetNames;

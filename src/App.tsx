@@ -22,12 +22,11 @@ import { AccessControlModal } from './components/AccessControlModal';
 import { AccessDeniedScreen } from './components/AccessDeniedScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { TaskModal } from './components/TaskModal';
-import { ExcelSyncModal } from './components/ExcelSyncModal';
 import { AppSheetLinksModal } from './components/AppSheetLinksModal';
 import { PWAInstallModal } from './components/PWAInstallModal';
 import { exportTasksExcel, exportFrigosExcel } from './services/exportService';
 import { storageService } from './services/storageService';
-import { loadTasksFromStaticCsv } from './services/excelReaderService';
+import { loadTasksFromStaticCsv, loadFrigosFromStaticCache } from './services/excelReaderService';
 import { useAppUpdate } from './hooks/useAppUpdate';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner';
 
@@ -258,11 +257,12 @@ export default function App() {
     }
   }, [accessMode, isAdmin, cdzPermissions, activeTab]);
 
-  // Chargement exhaustif des données : IndexedDB + Serveur / CSV statique fallback
+  // Chargement exhaustif des données : IndexedDB + Serveur / Cache statique (10 000+ tâches et 7 100+ frigos)
   useEffect(() => {
     async function loadSavedData() {
       try {
         let loadedTasksCount = 0;
+        let loadedFrigosCount = 0;
 
         // 1. Charger depuis le cache local IndexedDB
         const savedTasks = await storageService.loadTasks();
@@ -274,16 +274,33 @@ export default function App() {
         const savedFrigos = await storageService.loadFrigos();
         if (savedFrigos && savedFrigos.frigos && savedFrigos.frigos.length > 20) {
           setFrigoData(savedFrigos);
+          loadedFrigosCount = savedFrigos.frigos.length;
         }
 
         const maj = storageService.loadLastMaj();
         if (maj) setLastMaj(maj);
 
-        // 2. Synchronisation automatique en arrière-plan depuis le serveur
-        const storedTasksId = storageService.loadTasksFileId();
-        const overviewEndpoint = storedTasksId
-          ? `/api/sync-drive?type=overview&tasksFileId=${encodeURIComponent(storedTasksId)}`
-          : '/api/sync-drive?type=overview';
+        // 2. Si le cache local est insuffisant, charger immédiatement les fichiers statiques pré-embarqués
+        if (loadedTasksCount < 100) {
+          loadTasksFromStaticCsv().then((staticTasks) => {
+            if (staticTasks && staticTasks.length > 0) {
+              const computed = computeTaskFields(staticTasks);
+              setTasks(computed);
+              storageService.saveTasks(computed);
+            }
+          });
+        }
+        if (loadedFrigosCount < 20) {
+          loadFrigosFromStaticCache().then((cachedFrz) => {
+            if (cachedFrz && cachedFrz.frigos && cachedFrz.frigos.length > 0) {
+              setFrigoData(cachedFrz);
+              storageService.saveFrigos(cachedFrz);
+            }
+          });
+        }
+
+        // 3. Synchronisation automatique en arrière-plan depuis le serveur
+        const overviewEndpoint = '/api/sync-drive?type=overview';
 
         fetch(overviewEndpoint)
           .then((res) => res.json())
@@ -296,29 +313,9 @@ export default function App() {
                 setLastMaj(data.maj);
                 storageService.saveLastMaj(data.maj);
               }
-            } else if (loadedTasksCount < 100) {
-              // Si le serveur a retourné peu ou pas de données, charger immédiatement le fichier CSV statique
-              loadTasksFromStaticCsv().then((staticTasks) => {
-                if (staticTasks && staticTasks.length > 0) {
-                  const computed = computeTaskFields(staticTasks);
-                  setTasks(computed);
-                  storageService.saveTasks(computed);
-                }
-              });
             }
           })
-          .catch(() => {
-            // En cas d'erreur réseau / serveur en veille (Render cold start)
-            if (loadedTasksCount < 100) {
-              loadTasksFromStaticCsv().then((staticTasks) => {
-                if (staticTasks && staticTasks.length > 0) {
-                  const computed = computeTaskFields(staticTasks);
-                  setTasks(computed);
-                  storageService.saveTasks(computed);
-                }
-              });
-            }
-          });
+          .catch((e) => console.warn('Auto-sync tasks error:', e));
 
         fetch('/api/sync-drive?type=frigos')
           .then((res) => res.json())
@@ -331,7 +328,7 @@ export default function App() {
           })
           .catch((e) => console.warn('Auto-sync frigos error:', e));
       } catch (e) {
-        console.warn('Erreur chargement IndexedDB:', e);
+        console.warn('Erreur chargement données:', e);
       }
     }
     loadSavedData();
@@ -340,7 +337,6 @@ export default function App() {
   // Modals state
   const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
   const [viewingTask, setViewingTask] = useState<TaskItem | null>(null);
-  const [isExcelSyncOpen, setIsExcelSyncOpen] = useState<boolean>(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState<boolean>(false);
 
@@ -566,20 +562,6 @@ export default function App() {
     setIsTaskModalOpen(true);
   };
 
-  // Autonomous Excel Updates
-  const handleUpdateTasksFromExcel = (newTasks: TaskItem[]) => {
-    const computed = computeTaskFields(newTasks);
-    setTasks(computed);
-    storageService.saveTasks(computed);
-    updateLastMaj();
-  };
-
-  const handleUpdateFrigosFromExcel = (newFrz: FrigoData) => {
-    setFrigoData(newFrz);
-    storageService.saveFrigos(newFrz);
-    updateLastMaj();
-  };
-
   const [isSyncingDrive, setIsSyncingDrive] = useState<boolean>(false);
   const [syncFeedback, setSyncFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -645,17 +627,6 @@ export default function App() {
     } finally {
       setIsSyncingDrive(false);
     }
-  };
-
-  const handleResetToDemo = () => {
-    storageService.clearAll();
-    const initialT = computeTaskFields(INITIAL_TASKS);
-    setTasks(initialT);
-    setFrigoData(INITIAL_FRIGOS);
-    const defaultDate = '20/10/2026 18:15';
-    setLastMaj(defaultDate);
-    storageService.saveLastMaj(defaultDate);
-    setIsExcelSyncOpen(false);
   };
 
   // Export handler
@@ -751,7 +722,6 @@ export default function App() {
           lastMaj={lastMaj}
           onRefresh={handleRefresh}
           onExport={handleExport}
-          onOpenExcelSync={isAdmin ? () => setIsExcelSyncOpen(true) : undefined}
           onOpenInstallModal={isAdmin ? () => setIsInstallModalOpen(true) : undefined}
           onOpenAccessControl={isAdmin ? () => setIsAccessModalOpen(true) : undefined}
           onOpenAppSheetLinks={() => setIsAppSheetLinksOpen(true)}
@@ -961,8 +931,6 @@ export default function App() {
                 zChefs={zChefs}
                 zRisques={zRisques}
                 zActions={zActions}
-                onUpdateFrigos={handleUpdateFrigosFromExcel}
-                onOpenExcelSync={() => setIsExcelSyncOpen(true)}
               />
             )}
           </main>
@@ -976,16 +944,6 @@ export default function App() {
             setViewingTask(null);
           }}
           task={viewingTask}
-        />
-
-        <ExcelSyncModal
-          isOpen={isExcelSyncOpen}
-          onClose={() => setIsExcelSyncOpen(false)}
-          onUpdateTasks={handleUpdateTasksFromExcel}
-          onUpdateFrigos={handleUpdateFrigosFromExcel}
-          onResetToDemo={handleResetToDemo}
-          currentTasksCount={scopedTasks.length}
-          currentFrigosCount={scopedFrigos.length}
         />
 
         {/* Liens d'Intégration AppSheet */}

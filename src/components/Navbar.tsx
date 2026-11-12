@@ -27,7 +27,6 @@ interface NavbarProps {
   lastMaj: string;
   onRefresh: () => void;
   onExport: () => void;
-  onOpenExcelSync?: () => void;
   onOpenInstallModal?: () => void;
   onOpenAccessControl?: () => void;
   onOpenAppSheetLinks?: () => void;
@@ -50,7 +49,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   lastMaj,
   onRefresh,
   onExport,
-  onOpenExcelSync,
   onOpenInstallModal,
   onOpenAccessControl,
   onOpenAppSheetLinks,
@@ -260,18 +258,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Synchronisation Excel (Admin seulement) */}
-            {isAdmin && onOpenExcelSync && (
-              <button
-                onClick={onOpenExcelSync}
-                title="Synchroniser un fichier Excel ou Google Drive"
-                className="hidden sm:flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 transition cursor-pointer"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-blue-600" />
-                <span>Sync Fichier</span>
-              </button>
-            )}
-
             {/* Mobile menu trigger */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -354,19 +340,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <ShieldCheck className="w-4 h-4 text-amber-600" />
                     <span>⚙️ Gestion des Accès (Admin)</span>
-                  </button>
-                )}
-
-                {isAdmin && onOpenExcelSync && (
-                  <button
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      onOpenExcelSync();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-slate-500" />
-                    <span>Synchroniser Fichier Excel / Drive</span>
                   </button>
                 )}
 
