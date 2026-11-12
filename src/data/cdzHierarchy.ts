@@ -295,13 +295,6 @@ export const ALL_COLLABORATORS: Collaborateur[] = [
   { email: 'rafik.khefifi@vilavi.tn', nom: 'Rafik Khefifi', role: 'Direction' }
 ];
 
-export const ALL_MODULES: { key: ModuleKey; label: string; desc: string }[] = [
-  { key: 'pOverview', label: "Vue d'ensemble (Tâches)", desc: 'Tâches commerciales, réconciliation clients et KPIs' },
-  { key: 'pVisites', label: 'Visites Clients (Terrain & GPS)', desc: 'Pointages géolocalisés, respect Sur site vs Hors zone' },
-  { key: 'pMonth', label: 'Ventes Sell-Out (Réalisation)', desc: "Facturations et chiffre d'affaires mensuel 2026" },
-  { key: 'pFrigos', label: 'Parc Frigos (FREEZER_LISTING)', desc: 'Scoring risque, carte et conformité des congélateurs' }
-];
-
 export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
   'mohamed.jouini@vilavi.tn': {
     allowedModules: ['pOverview', 'pFrigos'],

@@ -39,7 +39,7 @@ export interface VoiceFilterModalProps {
   frigos?: FrigoItem[];
   visites?: VisiteItem[];
   activeTab?: string;
-  onSwitchTab?: (tab: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites') => void;
+  onSwitchTab?: (tab: 'pOverview' | 'pFrigos') => void;
   accessMode?: string;
 }
 

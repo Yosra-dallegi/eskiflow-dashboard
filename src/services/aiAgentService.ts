@@ -516,8 +516,8 @@ ${metrics.visitesHorsZone > 0 ? `⚠️ **Point d'attention :** ${metrics.visite
       ],
       action: {
         type: 'CHANGE_TAB',
-        label: 'Ouvrir l\'onglet Visites Clients',
-        payload: { tab: 'pVisites' }
+        label: 'Consulter le Suivi des Tâches',
+        payload: { tab: 'pOverview' }
       },
       derjaVoiceText: `Aandna ${metrics.totalVisites} visite, ${metrics.visitesSurSite} sur site b taux ${metrics.tauxConformiteGps} pourcent, w ${metrics.visitesHorsZone} hors zone.`
     };
@@ -560,8 +560,8 @@ ${topPrefs || '  - Détail par préfecture en cours de consolidation.'}`;
       ],
       action: {
         type: 'CHANGE_TAB',
-        label: 'Voir l\'onglet Réalisation & Ventes',
-        payload: { tab: 'pMonth' }
+        label: 'Consulter le Suivi des Tâches',
+        payload: { tab: 'pOverview' }
       },
       derjaVoiceText: `Le chiffre d'affaires total houwa ${metrics.totalCaHt.toLocaleString()} dinars hors taxe.`
     };
