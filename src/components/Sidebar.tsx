@@ -8,6 +8,10 @@ interface SidebarProps {
   filterChefs: string[];
   setFilterChefs: (v: string[]) => void;
   uniqueChefs: string[];
+
+  filterSuperviseurs: string[];
+  setFilterSuperviseurs: (v: string[]) => void;
+  uniqueSuperviseurs: string[];
   
   filterCdrs: string[];
   setFilterCdrs: (v: string[]) => void;
@@ -83,6 +87,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   filterChefs,
   setFilterChefs,
   uniqueChefs,
+  filterSuperviseurs,
+  setFilterSuperviseurs,
+  uniqueSuperviseurs,
   filterCdrs,
   setFilterCdrs,
   uniqueCdrs,
@@ -156,6 +163,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             options={uniqueChefs}
             selectedValues={filterChefs}
             onChange={setFilterChefs}
+          />
+
+          <MultiSelectFilter
+            label="Superviseur"
+            placeholder="Tous les superviseurs autorisés"
+            options={uniqueSuperviseurs}
+            selectedValues={filterSuperviseurs}
+            onChange={setFilterSuperviseurs}
           />
 
           <MultiSelectFilter

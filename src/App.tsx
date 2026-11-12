@@ -387,6 +387,7 @@ export default function App() {
 
   // Overview Filters (Multi-select)
   const [filterChefs, setFilterChefs] = useState<string[]>([]);
+  const [filterSuperviseurs, setFilterSuperviseurs] = useState<string[]>([]);
   const [filterCdrs, setFilterCdrs] = useState<string[]>([]);
   const [filterTitres, setFilterTitres] = useState<string[]>([]);
   const [filterEtats, setFilterEtats] = useState<string[]>([]);
@@ -412,6 +413,12 @@ export default function App() {
   // Unique options for Overview filters
   const uniqueChefs = useMemo(() => {
     return Array.from(new Set(scopedTasks.map((t) => t.chef).filter(Boolean))).sort();
+  }, [scopedTasks]);
+
+  const uniqueSuperviseurs = useMemo(() => {
+    return Array.from(
+      new Set(scopedTasks.map((t) => String(t.superviseur || '').trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
   }, [scopedTasks]);
 
   const uniqueCdrs = useMemo(() => {
@@ -452,6 +459,7 @@ export default function App() {
       const cdz = CDZ_LIST.find((c) => c?.email && c.email.toLowerCase() === (accessMode || '').toLowerCase());
       setFilterChefs(cdz ? [cdz.name] : []);
     }
+    setFilterSuperviseurs([]);
     setFilterCdrs([]);
     setFilterTitres([]);
     setFilterEtats([]);
@@ -488,6 +496,7 @@ export default function App() {
 
     return scopedTasks.filter((t) => {
       if (filterChefs.length > 0 && !filterChefs.includes(t.chef)) return false;
+      if (filterSuperviseurs.length > 0 && !filterSuperviseurs.includes(String(t.superviseur || '').trim())) return false;
       if (filterCdrs.length > 0 && !filterCdrs.includes(t.cdr)) return false;
       if (filterTitres.length > 0 && !filterTitres.includes(t.titre)) return false;
       if (filterEtats.length > 0 && !filterEtats.includes(t.etat || '')) return false;
@@ -518,6 +527,7 @@ export default function App() {
   }, [
     scopedTasks,
     filterChefs,
+    filterSuperviseurs,
     filterCdrs,
     filterTitres,
     filterEtats,
@@ -535,6 +545,7 @@ export default function App() {
     let count = 0;
     if (activeTab === 'pOverview') {
       count += filterChefs.length;
+      count += filterSuperviseurs.length;
       count += filterCdrs.length;
       count += filterTitres.length;
       count += filterEtats.length;
@@ -558,7 +569,7 @@ export default function App() {
     }
     return count;
   }, [
-    activeTab, filterChefs, filterCdrs, filterTitres, filterEtats, filterDemandeurs, filterFid,
+    activeTab, filterChefs, filterSuperviseurs, filterCdrs, filterTitres, filterEtats, filterDemandeurs, filterFid,
     filterFrom, filterTo, filterCaMin, filterCaMax, filterSearch,
     zSerial, zStatuts, zAnnees, zContrats, zReps, zSups, zChefs, zRisques, zActions
   ]);
@@ -731,7 +742,7 @@ export default function App() {
           onExport={handleExport}
           onOpenInstallModal={isAdmin ? () => setIsInstallModalOpen(true) : undefined}
           onOpenAccessControl={isAdmin ? () => setIsAccessModalOpen(true) : undefined}
-          onOpenAppSheetLinks={() => setIsAppSheetLinksOpen(true)}
+          onOpenAppSheetLinks={isAdmin ? () => setIsAppSheetLinksOpen(true) : undefined}
           isAutonome={true}
           isRefreshing={isSyncingDrive}
           hasUpdate={hasUpdate}
@@ -797,6 +808,9 @@ export default function App() {
                 filterChefs={filterChefs}
                 setFilterChefs={setFilterChefs}
                 uniqueChefs={uniqueChefs}
+                filterSuperviseurs={filterSuperviseurs}
+                setFilterSuperviseurs={setFilterSuperviseurs}
+                uniqueSuperviseurs={uniqueSuperviseurs}
                 filterCdrs={filterCdrs}
                 setFilterCdrs={setFilterCdrs}
                 uniqueCdrs={uniqueCdrs}
@@ -862,6 +876,9 @@ export default function App() {
               filterChefs={filterChefs}
               setFilterChefs={setFilterChefs}
               uniqueChefs={uniqueChefs}
+              filterSuperviseurs={filterSuperviseurs}
+              setFilterSuperviseurs={setFilterSuperviseurs}
+              uniqueSuperviseurs={uniqueSuperviseurs}
               filterCdrs={filterCdrs}
               setFilterCdrs={setFilterCdrs}
               uniqueCdrs={uniqueCdrs}

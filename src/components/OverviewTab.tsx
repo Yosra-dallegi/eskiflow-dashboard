@@ -707,6 +707,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 <th className="py-2.5 px-2.5 font-semibold">Code</th>
                 <th className="py-2.5 px-3 font-semibold">Client</th>
                 <th className="py-2.5 px-2.5 font-semibold">Chef de zone</th>
+                <th className="py-2.5 px-2.5 font-semibold">Superviseur</th>
                 <th className="py-2.5 px-2.5 font-semibold">Délégation</th>
                 <th className="py-2.5 px-2.5 font-semibold">Représentant</th>
                 <th className="py-2.5 px-3 font-semibold">Tâche</th>
@@ -740,6 +741,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                   <td className="py-2 px-2.5 font-mono font-medium text-slate-900 whitespace-nowrap">{t.code}</td>
                   <td className="py-2 px-3 font-medium text-slate-900 whitespace-nowrap">{t.clientNom || '— Non rattaché —'}</td>
                   <td className="py-2 px-2.5 whitespace-nowrap">{t.chef || '—'}</td>
+                  <td className="py-2 px-2.5 whitespace-nowrap text-slate-700">{t.superviseur || '—'}</td>
                   <td className="py-2 px-2.5 whitespace-nowrap">{t.cdr || '—'}</td>
                   <td className="py-2 px-2.5 whitespace-nowrap">{t.repr || '—'}</td>
                   <td className="py-2 px-3 max-w-[240px] truncate font-medium text-slate-800" title={t.titre}>

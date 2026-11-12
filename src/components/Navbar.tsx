@@ -203,8 +203,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Actions Bar */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Bouton Liens AppSheet (Recommandé) */}
-            {onOpenAppSheetLinks && (
+            {/* Bouton Liens AppSheet (Strictement réservé à l'administrateur) */}
+            {isAdmin && onOpenAppSheetLinks && (
               <button
                 type="button"
                 onClick={onOpenAppSheetLinks}
@@ -317,7 +317,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Mobile Links */}
               <div className="space-y-2">
-                {onOpenAppSheetLinks && (
+                {isAdmin && onOpenAppSheetLinks && (
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
