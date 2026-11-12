@@ -29,7 +29,7 @@ export interface AIAction {
   type: 'FILTER_TASKS' | 'CHANGE_TAB' | 'RESET_FILTERS';
   label: string;
   payload: {
-    tab?: 'pOverview' | 'pMonth' | 'pFrigos' | 'pVisites';
+    tab?: 'pOverview' | 'pFrigos';
     etat?: 'Terminée' | 'En attente' | 'En retard' | '';
     chef?: string;
     cdr?: string;

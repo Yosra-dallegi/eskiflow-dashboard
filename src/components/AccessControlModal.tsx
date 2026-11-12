@@ -92,7 +92,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
   const [newEmail, setNewEmail] = useState<string>('');
   const [newRole, setNewRole] = useState<string>('Chef de Zone');
   const [newIsGlobal, setNewIsGlobal] = useState<boolean>(false);
-  const [newModules, setNewModules] = useState<ModuleKey[]>(['pOverview', 'pVisites', 'pMonth', 'pFrigos']);
+  const [newModules, setNewModules] = useState<ModuleKey[]>(['pOverview', 'pFrigos']);
   const [newTeamEmails, setNewTeamEmails] = useState<string[]>([]);
 
   // Search & Filters
@@ -217,7 +217,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
   // Current user being edited
   const currentEditingUser = allUserAccounts.find((u) => u.email === editingEmail.toLowerCase()) || allUserAccounts[0];
   const currentConfig: CdzPermissions = localPerms[editingEmail.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[editingEmail.toLowerCase()] || {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: (() => {
       const c = CDZ_LIST.find((x) => x.email.toLowerCase() === editingEmail.toLowerCase());
       return c ? c.teamEmails : [editingEmail.toLowerCase()];
@@ -229,7 +229,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
 
   // Toggle Module for currently edited user
   const handleToggleModule = (moduleKey: ModuleKey) => {
-    const current = currentConfig.allowedModules || ['pOverview', 'pVisites', 'pMonth', 'pFrigos'];
+    const current = currentConfig.allowedModules || ['pOverview', 'pFrigos'];
     let updated: ModuleKey[];
     if (current.includes(moduleKey)) {
       if (current.length === 1) {
@@ -332,7 +332,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
 
     // 1. Définir les permissions
     const newPerm: CdzPermissions = {
-      allowedModules: newModules.length > 0 ? newModules : ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+      allowedModules: newModules.length > 0 ? newModules : ['pOverview', 'pFrigos'],
       allowedTeamEmails: newIsGlobal ? [] : (newTeamEmails.length > 0 ? newTeamEmails : [cleanEmail]),
       isGlobalManager: newIsGlobal,
       nom: cleanNom,
@@ -372,7 +372,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
     setNewEmail('');
     setNewRole('Chef de Zone');
     setNewIsGlobal(false);
-    setNewModules(['pOverview', 'pVisites', 'pMonth', 'pFrigos']);
+    setNewModules(['pOverview', 'pFrigos']);
     setNewTeamEmails([]);
     setShowCreateForm(false);
     setEditingEmail(cleanEmail);
@@ -773,7 +773,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                   {filteredUsers.map((user) => {
                     const isSelected = editingEmail.toLowerCase() === user.email.toLowerCase();
                     const cfg = localPerms[user.email.toLowerCase()] || DEFAULT_CDZ_PERMISSIONS[user.email.toLowerCase()];
-                    const allowedMods = cfg?.allowedModules || ['pOverview', 'pVisites', 'pMonth', 'pFrigos'];
+                    const allowedMods = cfg?.allowedModules || ['pOverview', 'pFrigos'];
                     const isGlobal = cfg?.isGlobalManager || user.isManager;
 
                     return (
@@ -866,7 +866,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
 
                           {allowedMods.map((m) => (
                             <span key={m} className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
-                              {m === 'pOverview' ? 'Tâches' : m === 'pVisites' ? 'Visites' : m === 'pMonth' ? 'Ventes' : 'Frigos'}
+                              {m === 'pOverview' ? 'Tâches' : 'Frigos'}
                             </span>
                           ))}
                         </div>
@@ -965,7 +965,7 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
                       1. Vues (onglets) autorisées dans le tableau de bord :
                     </label>
                     <span className="text-[11px] text-slate-400">
-                      {(currentConfig.allowedModules || []).length} / 4 actives
+                      {(currentConfig.allowedModules || []).length} / 2 actives
                     </span>
                   </div>
 

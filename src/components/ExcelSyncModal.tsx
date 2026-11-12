@@ -10,11 +10,11 @@ interface ExcelSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateTasks: (tasks: TaskItem[]) => void;
-  onUpdateRealisation: (real: RealisationData) => void;
+  onUpdateRealisation?: (real: any) => void;
   onUpdateFrigos: (frz: FrigoData) => void;
   onResetToDemo: () => void;
   currentTasksCount: number;
-  currentRealisationCount: number;
+  currentRealisationCount?: number;
   currentFrigosCount: number;
 }
 
@@ -199,23 +199,23 @@ export const ExcelSyncModal: React.FC<ExcelSyncModalProps> = ({
           </div>
         )}
 
-        {/* 3 Upload Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {/* 2 Upload Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           
           {/* 1. Tâches & Clients */}
-          <div className="border border-slate-200 bg-slate-50/60 rounded-xl p-4 flex flex-col justify-between space-y-3">
+          <div className="border border-blue-200 bg-blue-50/40 rounded-xl p-4 flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                  1
+                  📋
                 </span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                  {currentTasksCount} tâches
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">
+                  {currentTasksCount.toLocaleString('fr-FR')} tâches chargées
                 </span>
               </div>
-              <h3 className="text-xs font-bold text-slate-900">Tâches & Clients</h3>
-              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                Fichier Excel des tâches d'équipe avec ou sans onglet "Clients" enrichi.
+              <h3 className="text-sm font-bold text-slate-900">Suivi des Tâches & Performance</h3>
+              <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                Fichier Excel ou CSV de toutes les tâches (supporte plus de 10 000 lignes sans limite).
               </p>
             </div>
 
@@ -229,71 +229,32 @@ export const ExcelSyncModal: React.FC<ExcelSyncModalProps> = ({
               />
               <label
                 htmlFor="tasksFileInput"
-                className={`w-full py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                className={`w-full py-2.5 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
                   loadingType === 'tasks'
                     ? 'bg-slate-200 text-slate-500'
-                    : 'bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 shadow-xs'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
                 }`}
               >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{loadingType === 'tasks' ? 'Lecture...' : 'Charger .xlsx'}</span>
+                <Upload className="w-4 h-4" />
+                <span>{loadingType === 'tasks' ? 'Lecture du fichier...' : 'Charger un fichier Tâches (.xlsx, .csv)'}</span>
               </label>
             </div>
           </div>
 
-          {/* 2. Réalisation Ventes */}
-          <div className="border border-slate-200 bg-slate-50/60 rounded-xl p-4 flex flex-col justify-between space-y-3">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                  2
-                </span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {currentRealisationCount} ventes
-                </span>
-              </div>
-              <h3 className="text-xs font-bold text-slate-900">Réalisation Mensuelle</h3>
-              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                Fichier des factures sell-out (HT, date, client, société NTN).
-              </p>
-            </div>
-
-            <div>
-              <input
-                type="file"
-                id="realFileInput"
-                accept=".xlsx, .xls, .csv"
-                onChange={(e) => handleFileProcess(e, 'realisation')}
-                className="hidden"
-              />
-              <label
-                htmlFor="realFileInput"
-                className={`w-full py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                  loadingType === 'realisation'
-                    ? 'bg-slate-200 text-slate-500'
-                    : 'bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs'
-                }`}
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{loadingType === 'realisation' ? 'Lecture...' : 'Charger .xlsx'}</span>
-              </label>
-            </div>
-          </div>
-
-          {/* 3. Parc Frigos */}
-          <div className="border border-slate-200 bg-slate-50/60 rounded-xl p-4 flex flex-col justify-between space-y-3">
+          {/* 2. Parc Frigos */}
+          <div className="border border-amber-200 bg-amber-50/40 rounded-xl p-4 flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs">
-                  3
+                  ❄️
                 </span>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                  {currentFrigosCount} frigos
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                  {currentFrigosCount.toLocaleString('fr-FR')} frigos
                 </span>
               </div>
-              <h3 className="text-xs font-bold text-slate-900">Parc Frigos (Listing)</h3>
-              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                Fichier FREEZER_LISTING avec numéros de série, scans et risques.
+              <h3 className="text-sm font-bold text-slate-900">Parc Frigos (Listing)</h3>
+              <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                Fichier FREEZER_LISTING avec numéros de série, scans, conformité GPS et risques.
               </p>
             </div>
 
@@ -307,14 +268,14 @@ export const ExcelSyncModal: React.FC<ExcelSyncModalProps> = ({
               />
               <label
                 htmlFor="frzFileInput"
-                className={`w-full py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                className={`w-full py-2.5 px-3 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer ${
                   loadingType === 'frigos'
                     ? 'bg-slate-200 text-slate-500'
-                    : 'bg-white hover:bg-amber-50 text-amber-700 border border-amber-200 shadow-xs'
+                    : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
                 }`}
               >
-                <Upload className="w-3.5 h-3.5" />
-                <span>{loadingType === 'frigos' ? 'Lecture...' : 'Charger .xlsx'}</span>
+                <Upload className="w-4 h-4" />
+                <span>{loadingType === 'frigos' ? 'Lecture du fichier...' : 'Charger un listing Frigos (.xlsx)'}</span>
               </label>
             </div>
           </div>

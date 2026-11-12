@@ -228,7 +228,12 @@ export const EMAIL_TO_NAME: Record<string, string> = {
   'anis.kouki@vilavi.tn': 'KOUKI ANIS'
 };
 
-export type ModuleKey = 'pOverview' | 'pVisites' | 'pMonth' | 'pFrigos';
+export type ModuleKey = 'pOverview' | 'pFrigos';
+
+export const ALL_MODULES: { key: ModuleKey; label: string; icon: string; desc: string }[] = [
+  { key: 'pOverview', label: 'Suivi des Tâches', icon: '📋', desc: 'Performance commerciale, avancement et cartographie' },
+  { key: 'pFrigos', label: 'Suivi des Frigos', icon: '❄️', desc: 'Parc de matériel, conformité GPS et détection des risques' }
+];
 
 export interface CdzPermissions {
   allowedModules: ModuleKey[];
@@ -299,7 +304,7 @@ export const ALL_MODULES: { key: ModuleKey; label: string; desc: string }[] = [
 
 export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
   'mohamed.jouini@vilavi.tn': {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: [
       'ahmed.trabelsi@vilavi.tn',
       'aymen.amdouni@vilavi.tn',
@@ -312,7 +317,7 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
     ]
   },
   'mourad.hasnaoui@vilavi.tn': {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: [
       'chokri.zghidi@vilavi.tn',
       'issam.saidi@vilavi.tn',
@@ -321,7 +326,7 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
     ]
   },
   'fahmi.soudani@vilavi.tn': {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: [
       'ahmed.trabelsi@vilavi.tn',
       'fahmi.soudani@vilavi.tn',
@@ -330,7 +335,7 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
     ]
   },
   'tarak.boukottaya@vilavi.tn': {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: [
       'omar.hrichi@vilavi.tn',
       'tarak.boukottaya@vilavi.tn',
@@ -338,7 +343,7 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
     ]
   },
   'sami.ez@vilavi.tn': {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: [
       'ahmed.amara@vilavi.tn',
       'hamza.miled@vilavi.tn',
@@ -347,7 +352,7 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
     ]
   },
   'debeghi.lotfi@vilavi.tn': {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: [
       'debeghi.lotfi@vilavi.tn',
       'maher.benmansour@vilavi.tn',
@@ -355,7 +360,7 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
     ]
   },
   'abdelmajid.chouchene@vilavi.tn': {
-    allowedModules: ['pOverview', 'pVisites', 'pMonth', 'pFrigos'],
+    allowedModules: ['pOverview', 'pFrigos'],
     allowedTeamEmails: [
       'abdelmajid.chouchene@vilavi.tn',
       'anis.kouki@vilavi.tn',
@@ -388,7 +393,10 @@ export function isUserAuthorized(email: string, managersList?: ManagerUser[]): b
   if (em === 'manager') return true;
   const managers = (managersList || DEFAULT_MANAGERS).map((m) => m.email.toLowerCase());
   if (managers.includes(em)) return true;
-  return CDZ_LIST.some((c) => c.email.toLowerCase() === em);
+  if (CDZ_LIST.some((c) => c.email.toLowerCase() === em)) return true;
+  if (ALL_COLLABORATORS.some((c) => c.email.toLowerCase() === em)) return true;
+  // Tout utilisateur arrivant avec un email valide est autorisé (pour les liens magiques AppSheet)
+  return em.includes('@');
 }
 
 /**

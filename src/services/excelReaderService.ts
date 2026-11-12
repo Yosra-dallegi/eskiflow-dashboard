@@ -227,6 +227,23 @@ export function parseTasksExcel(workbook: XLSX.WorkBook): TaskItem[] {
     });
 }
 
+/**
+ * Charge immédiatement les tâches depuis le fichier CSV statique en cas de délai / panne serveur
+ */
+export async function loadTasksFromStaticCsv(): Promise<TaskItem[]> {
+  try {
+    const res = await fetch('/data/eskiflow_taches.csv');
+    if (!res.ok) return [];
+    const text = await res.text();
+    if (!text || text.length < 50) return [];
+    const wb = XLSX.read(text, { type: 'string' });
+    return parseTasksExcel(wb);
+  } catch (e) {
+    console.warn('Failed to load tasks from static CSV:', e);
+    return [];
+  }
+}
+
 // --- 2. Parser pour Réalisation Ventes ---
 
 export function parseRealisationExcel(workbook: XLSX.WorkBook): RealisationData {
