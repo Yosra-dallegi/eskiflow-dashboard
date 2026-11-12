@@ -12,7 +12,8 @@ import {
   isModuleAllowed, 
   getAuthorizedTeamEmails,
   isUserAuthorized,
-  isRecordAuthorizedForCdz
+  isRecordAuthorizedForCdz,
+  getCdzForSupervisor
 } from './data/cdzHierarchy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -51,7 +52,12 @@ function computeTaskFields(rawTasks: TaskItem[]): TaskItem[] {
       : isLate
       ? 'En retard'
       : 'En attente';
-    const chef = t.chef ? t.chef.trim() : SANS_CHEF;
+    const rawChef = t.chef ? t.chef.trim() : SANS_CHEF;
+    // Résolution automatique de la Zone CDZ officielle selon la table d'affectation
+    const cdzMatch = getCdzForSupervisor(rawChef);
+    const chef = cdzMatch ? cdzMatch.cdzName : rawChef;
+    const superviseur = t.superviseur || (cdzMatch ? rawChef : t.demandeur || '');
+
     const ecart =
       isDone && t.dateReal && e
         ? Math.round((toDate(t.dateReal)!.getTime() - e.getTime()) / 864e5)
@@ -63,6 +69,7 @@ function computeTaskFields(rawTasks: TaskItem[]): TaskItem[] {
       late: isLate,
       etat,
       chef,
+      superviseur,
       ecart
     };
   });
@@ -350,7 +357,7 @@ export default function App() {
     if (isManager || isAdmin) return tasks;
     return tasks.filter((t) => isRecordAuthorizedForCdz({
       chefZone: t.chef,
-      superviseur: t.demandeur,
+      superviseur: t.superviseur || t.demandeur,
       demandeur: t.demandeur,
       realisePar: t.realisePar,
       repr: t.repr,

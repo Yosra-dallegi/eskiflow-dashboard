@@ -12,6 +12,7 @@ export interface TaskItem {
   trouve: boolean;
   // Données enrichies client
   chef: string; // Nom Chef de Zone
+  superviseur?: string; // Nom du Superviseur assigné
   cdr: string; // Délégation / CDR
   repr: string; // Nom Représentant
   clientNom: string; // Raison sociale
