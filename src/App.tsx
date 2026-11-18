@@ -309,36 +309,68 @@ export default function App() {
         // 3. Synchronisation automatique en arrière-plan depuis le serveur
         const overviewEndpoint = '/api/sync-drive?type=overview';
 
-        fetch(overviewEndpoint)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success && data.tasks && data.tasks.length > 0) {
-              const computed = computeTaskFields(data.tasks);
-              setTasks(computed);
-              storageService.saveTasks(computed);
-              if (data.maj) {
-                setLastMaj(data.maj);
-                storageService.saveLastMaj(data.maj);
-              }
-            }
-          })
-          .catch((e) => console.warn('Auto-sync tasks error:', e));
+        let lastSyncTime = Date.now();
 
-        fetch('/api/sync-drive?type=frigos')
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success && data.frigos && data.frigos.length > 0) {
-              const newFrzData = { frigos: data.frigos, maj: data.maj };
-              setFrigoData(newFrzData);
-              storageService.saveFrigos(newFrzData);
-            }
-          })
-          .catch((e) => console.warn('Auto-sync frigos error:', e));
+        const runAutoSync = (force = false) => {
+          // Évite de consommer des ressources si l'onglet est masqué ou minimisé
+          if (!force && typeof document !== 'undefined' && document.hidden) {
+            return;
+          }
+
+          lastSyncTime = Date.now();
+
+          fetch(overviewEndpoint)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success && data.tasks && data.tasks.length > 0) {
+                const computed = computeTaskFields(data.tasks);
+                setTasks(computed);
+                storageService.saveTasks(computed);
+                if (data.maj) {
+                  setLastMaj(data.maj);
+                  storageService.saveLastMaj(data.maj);
+                }
+              }
+            })
+            .catch((e) => console.warn('Auto-sync tasks error:', e));
+
+          fetch('/api/sync-drive?type=frigos')
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.success && data.frigos && data.frigos.length > 0) {
+                const newFrzData = { frigos: data.frigos, maj: data.maj };
+                setFrigoData(newFrzData);
+                storageService.saveFrigos(newFrzData);
+              }
+            })
+            .catch((e) => console.warn('Auto-sync frigos error:', e));
+        };
+
+        // Exécution immédiate au démarrage
+        runAutoSync(true);
+
+        // Rafraîchissement automatique toutes les 5 minutes (uniquement si l'onglet est actif)
+        syncInterval = setInterval(() => runAutoSync(false), 5 * 60 * 1000);
+
+        // Quand l'utilisateur revient sur l'onglet après plus de 5 minutes d'absence, synchronisation instantanée
+        visibilityHandler = () => {
+          if (!document.hidden && Date.now() - lastSyncTime > 5 * 60 * 1000) {
+            runAutoSync(true);
+          }
+        };
+        document.addEventListener('visibilitychange', visibilityHandler);
       } catch (e) {
         console.warn('Erreur chargement données:', e);
       }
     }
+    let syncInterval: any;
+    let visibilityHandler: any;
     loadSavedData();
+
+    return () => {
+      if (syncInterval) clearInterval(syncInterval);
+      if (visibilityHandler) document.removeEventListener('visibilitychange', visibilityHandler);
+    };
   }, []);
 
   // Modals state
