@@ -112,6 +112,8 @@ const FRZ_CHAMPS: Record<string, string[]> = {
   nomRep: ['nom_rep', 'rep_nom', 'representant', 'commercial'],
   superviseur: ['superviseur', 'sup', 'nom_sup'],
   chefZone: ['chef_de_zone', 'chef_zone', 'nom_chef_zone', 'nom_chef'],
+  emailCdz: ['@_cdz', 'at_cdz', 'email_cdz', 'cdz_email', 'mail_cdz', 'cdz_mail'],
+  emailSup: ['@_superviseur', 'at_superviseur', 'email_sup', 'sup_email', 'mail_sup', 'sup_mail'],
   score: ['score', 'note', 'scoring'],
   risque: ['statut_risque_et', 'statut_risque', 'risque', 'niveau_risque', 'risk'],
   actions: ['actions', 'action', 'action_a_mener', 'consigne'],
@@ -192,6 +194,214 @@ const PERMISSIONS_FILE = path.resolve(DATA_DIR, 'cdz_permissions.json');
 const MANAGERS_FILE = path.resolve(DATA_DIR, 'managers.json');
 const TASKS_FILE = path.resolve(DATA_DIR, 'tasks.json');
 const CONFIG_FILE = path.resolve(DATA_DIR, 'config.json');
+const SYNC_STATUS_FILE = path.resolve(DATA_DIR, 'sync_status.json');
+
+// Interface du journal d'état de synchronisation
+interface BaseSyncState {
+  name: string;
+  sourceType: string;
+  fileId: string;
+  gid?: string;
+  sheet?: string;
+  status: 'SUCCESS' | 'ERROR';
+  lastSync: string;
+  lastSuccess: string;
+  totalRecords: number;
+  matchedCount?: number;
+  durationMs: number;
+  error: string | null;
+  sourceUsed: string;
+}
+
+interface SyncStatusData {
+  lastUpdated: string;
+  bases: {
+    tasks: BaseSyncState;
+    clients: BaseSyncState;
+    frigos: BaseSyncState;
+  };
+  history: Array<{
+    timestamp: string;
+    dateFormatted: string;
+    base: 'tasks' | 'clients' | 'frigos';
+    baseName: string;
+    status: 'SUCCESS' | 'ERROR';
+    records: number;
+    durationMs: number;
+    error: string | null;
+    sourceUsed?: string;
+  }>;
+}
+
+function getInitialSyncStatus(): SyncStatusData {
+  return {
+    lastUpdated: '',
+    bases: {
+      tasks: {
+        name: 'Tâches Commerciales',
+        sourceType: 'Google Sheet (Export CSV)',
+        fileId: CONFIG_DRIVE.TASKS_FILE_ID,
+        gid: CONFIG_DRIVE.TASKS_GID,
+        status: 'SUCCESS',
+        lastSync: '',
+        lastSuccess: '',
+        totalRecords: 0,
+        durationMs: 0,
+        error: null,
+        sourceUsed: 'Google Sheet (Feuille Tâches)'
+      },
+      clients: {
+        name: 'Base Clients',
+        sourceType: 'Google Drive (Classeur XLSX)',
+        fileId: CONFIG_DRIVE.CLIENTS_FILE_ID,
+        status: 'SUCCESS',
+        lastSync: '',
+        lastSuccess: '',
+        totalRecords: 0,
+        durationMs: 0,
+        error: null,
+        sourceUsed: 'Google Drive (Base Clients)'
+      },
+      frigos: {
+        name: 'Parc Frigos',
+        sourceType: 'Google Drive (FREEZER_LISTING)',
+        fileId: CONFIG_DRIVE.FRIGOS_FILE_ID,
+        sheet: CONFIG_DRIVE.FRIGOS_SHEET,
+        status: 'SUCCESS',
+        lastSync: '',
+        lastSuccess: '',
+        totalRecords: 0,
+        durationMs: 0,
+        error: null,
+        sourceUsed: 'Google Drive (FREEZER_LISTING)'
+      }
+    },
+    history: []
+  };
+}
+
+function logSyncEvent(
+  baseKey: 'tasks' | 'clients' | 'frigos',
+  info: {
+    status: 'SUCCESS' | 'ERROR';
+    records: number;
+    durationMs: number;
+    error?: string | null;
+    sourceUsed?: string;
+    fileId?: string;
+    matchedCount?: number;
+  }
+) {
+  try {
+    const state = readJsonFile<SyncStatusData>(SYNC_STATUS_FILE, getInitialSyncStatus());
+    const now = new Date();
+    const z = (n: number) => ('0' + n).slice(-2);
+    const dateFormatted = `${z(now.getDate())}/${z(now.getMonth() + 1)}/${now.getFullYear()} ${z(now.getHours())}:${z(now.getMinutes())}:${z(now.getSeconds())}`;
+
+    state.lastUpdated = dateFormatted;
+    if (!state.bases) state.bases = getInitialSyncStatus().bases;
+    if (!state.history) state.history = [];
+
+    const baseObj = state.bases[baseKey] || getInitialSyncStatus().bases[baseKey];
+    baseObj.status = info.status;
+    baseObj.lastSync = dateFormatted;
+    baseObj.durationMs = info.durationMs;
+
+    if (info.fileId) baseObj.fileId = info.fileId;
+    if (info.sourceUsed) baseObj.sourceUsed = info.sourceUsed;
+    if (info.matchedCount !== undefined) baseObj.matchedCount = info.matchedCount;
+
+    if (info.status === 'SUCCESS') {
+      baseObj.lastSuccess = dateFormatted;
+      baseObj.totalRecords = info.records;
+      baseObj.error = null;
+    } else {
+      baseObj.error = info.error || 'Erreur lors du traitement';
+    }
+
+    state.bases[baseKey] = baseObj;
+
+    state.history.unshift({
+      timestamp: now.toISOString(),
+      dateFormatted,
+      base: baseKey,
+      baseName: baseObj.name || baseKey,
+      status: info.status,
+      records: info.records,
+      durationMs: info.durationMs,
+      error: info.error || null,
+      sourceUsed: info.sourceUsed || baseObj.sourceUsed
+    });
+
+    if (state.history.length > 100) {
+      state.history = state.history.slice(0, 100);
+    }
+
+    writeJsonFile(SYNC_STATUS_FILE, state);
+
+    // Générer automatiquement le fichier Excel de synthèse après chaque événement
+    writeSyncExcel(state);
+  } catch (e: any) {
+    console.warn('[SyncStatus] Erreur écriture log:', e.message);
+  }
+}
+
+// Génère un fichier Excel résumant l'état de synchronisation (mis à jour après chaque sync)
+function writeSyncExcel(data?: SyncStatusData) {
+  try {
+    const state = data || readJsonFile<SyncStatusData>(SYNC_STATUS_FILE, getInitialSyncStatus());
+    const wb = XLSX.utils.book_new();
+
+    // ---- Feuille 1 : État Actuel des 3 bases ----
+    const etatRows = Object.entries(state.bases || {}).map(([, b]) => ({
+      'Base de données': b.name,
+      'Statut': b.status === 'SUCCESS' ? '✅ Succès' : '❌ Erreur',
+      'Dernière synchronisation': b.lastSync || '—',
+      'Dernière réussite': b.lastSuccess || '—',
+      'Enregistrements chargés': b.totalRecords || 0,
+      'Durée (ms)': b.durationMs || 0,
+      'Source utilisée': b.sourceUsed || '—',
+      'Message d\'erreur': b.error || ''
+    }));
+    if (etatRows.length === 0) {
+      etatRows.push({
+        'Base de données': 'Aucune synchronisation encore effectuée',
+        'Statut': '—', 'Dernière synchronisation': '—', 'Dernière réussite': '—',
+        'Enregistrements chargés': 0, 'Durée (ms)': 0, 'Source utilisée': '—', 'Message d\'erreur': ''
+      });
+    }
+    const ws1 = XLSX.utils.json_to_sheet(etatRows);
+    // Largeur des colonnes
+    ws1['!cols'] = [{ wch: 28 }, { wch: 12 }, { wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 12 }, { wch: 40 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, ws1, 'État Actuel');
+
+    // ---- Feuille 2 : Historique des synchronisations ----
+    const histRows = (state.history || []).map((h) => ({
+      'Date & Heure': h.dateFormatted,
+      'Base de données': h.baseName,
+      'Statut': h.status === 'SUCCESS' ? '✅ Succès' : '❌ Erreur',
+      'Lignes chargées': h.records || 0,
+      'Durée (ms)': h.durationMs || 0,
+      'Source': h.sourceUsed || '—',
+      'Erreur / Détails': h.error || ''
+    }));
+    if (histRows.length === 0) {
+      histRows.push({
+        'Date & Heure': '—', 'Base de données': 'Aucun historique disponible', 'Statut': '—',
+        'Lignes chargées': 0, 'Durée (ms)': 0, 'Source': '—', 'Erreur / Détails': ''
+      });
+    }
+    const ws2 = XLSX.utils.json_to_sheet(histRows);
+    ws2['!cols'] = [{ wch: 22 }, { wch: 28 }, { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 40 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Historique');
+
+    const excelPath = path.resolve(DATA_DIR, 'journal_synchro_eskiflow.xlsx');
+    XLSX.writeFile(wb, excelPath);
+    console.log('[SyncExcel] Fichier Excel mis à jour :', excelPath);
+  } catch (e: any) {
+    console.warn('[SyncExcel] Erreur génération Excel:', e.message);
+  }
+}
 
 function readJsonFile<T>(filePath: string, fallback: T): T {
   try {
@@ -232,6 +442,8 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
       const tasksFileId = (req.query.tasksFileId as string) || (req.query.fileId as string) || savedConfig.tasksFileId || CONFIG_DRIVE.TASKS_FILE_ID;
 
       // 1. Download and build Clients Index from CLIENTS_FILE_ID (with cache fallback)
+      const startClients = Date.now();
+      let clientErrorMsg: string | null = null;
       let clientsIndex: Record<string, any> = {};
       const cacheClientPath = path.resolve(__dirname, 'public/data/clients_base_cache.xlsx');
 
@@ -245,6 +457,7 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
           } catch {}
         }
       } catch (err: any) {
+        clientErrorMsg = err.message;
         console.warn('Erreur téléchargement Drive base clients, essai du cache:', err.message);
         if (fs.existsSync(cacheClientPath)) {
           try {
@@ -311,11 +524,34 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
             });
           }
         } catch (err: any) {
+          clientErrorMsg = err.message;
           console.warn('Erreur parsing base clients:', err.message);
         }
       }
 
+      // Enregistrer l'état de synchronisation de la base clients
+      const clientsCount = Object.keys(clientsIndex).length;
+      if (clientsCount > 0) {
+        logSyncEvent('clients', {
+          status: 'SUCCESS',
+          records: clientsCount,
+          durationMs: Date.now() - startClients,
+          sourceUsed: `Google Drive (${clientsFileId})`,
+          fileId: clientsFileId
+        });
+      } else {
+        logSyncEvent('clients', {
+          status: 'ERROR',
+          records: 0,
+          durationMs: Date.now() - startClients,
+          error: clientErrorMsg || 'Aucun client lu depuis Google Drive ni depuis le cache',
+          fileId: clientsFileId
+        });
+      }
+
       // 2. Download Tasks from tasksFileId OR default Google Sheet (10 000+ tâches)
+      const startTasks = Date.now();
+      let taskErrorMsg: string | null = null;
       let rawTaskData: any[][] = [];
       let taskSourceUsed = '';
 
@@ -339,6 +575,7 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
             } catch {}
           }
         } catch (err: any) {
+          taskErrorMsg = err.message;
           console.warn('Erreur lecture Drive pour tâches, recours au cache local:', err.message);
         }
       }
@@ -482,6 +719,22 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
 
       if (tasks.length > 0) {
         writeJsonFile(TASKS_FILE, { tasks, maj: majStr });
+        logSyncEvent('tasks', {
+          status: 'SUCCESS',
+          records: tasks.length,
+          matchedCount,
+          durationMs: Date.now() - startTasks,
+          sourceUsed: taskSourceUsed,
+          fileId: effectiveTasksFileId
+        });
+      } else {
+        logSyncEvent('tasks', {
+          status: 'ERROR',
+          records: 0,
+          durationMs: Date.now() - startTasks,
+          error: taskErrorMsg || 'Aucune tâche valide trouvée',
+          fileId: effectiveTasksFileId
+        });
       }
 
       return res.json({
@@ -562,6 +815,7 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
     // -------------------------------------------------------------
     // CAS 3 : PARC FRIGOS (FREEZER_LISTING)
     // -------------------------------------------------------------
+    const startFrigos = Date.now();
     const fileId = (req.query.fileId as string) || CONFIG_DRIVE.FRIGOS_FILE_ID;
     const sheetParam = (req.query.sheet as string) || CONFIG_DRIVE.FRIGOS_SHEET;
     let buffer: Buffer | null = null;
@@ -636,6 +890,25 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
       item.score = item.score !== '' ? item.score : '—';
       item.nbScan = item.nbScan !== '' ? num(item.nbScan) : 0;
 
+      // Normalisation du nom officiel du Chef de Zone pour assurer une correspondance parfaite
+      const rawChef = String(item.chefZone || '').trim();
+      const rawChefUpper = rawChef.toUpperCase();
+      if (rawChefUpper.includes('BOUK') || rawChefUpper.includes('TARAK')) {
+        item.chefZone = 'BOUKOTTAYA TAREK';
+      } else if (rawChefUpper.includes('EZZAR')) {
+        item.chefZone = 'EZZAR SAMI';
+      } else if (rawChefUpper.includes('DABEGHI') || rawChefUpper.includes('DEBEGHI')) {
+        item.chefZone = 'DABEGHI LOTFI';
+      } else if (rawChefUpper.includes('JOUINI')) {
+        item.chefZone = 'JOUINI MOHAMED';
+      } else if (rawChefUpper.includes('HASNAOUI')) {
+        item.chefZone = 'MOURAD HASNAOUI';
+      } else if (rawChefUpper.includes('SOUDANI')) {
+        item.chefZone = 'SOUDANI FAHMI';
+      } else if (rawChefUpper.includes('CHOUCHENE')) {
+        item.chefZone = 'CHOUCHENE ABDELMAJID';
+      }
+
       let lat: number | undefined;
       let lng: number | undefined;
       const colLat = findCol(headers, 'latitude', 'lat');
@@ -662,6 +935,14 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
 
     frigos.sort((a, b) => a.serial.localeCompare(b.serial, 'fr', { numeric: true }));
 
+    logSyncEvent('frigos', {
+      status: 'SUCCESS',
+      records: frigos.length,
+      durationMs: Date.now() - startFrigos,
+      sourceUsed: `Google Drive (${fileId} - ${targetSheetName})`,
+      fileId
+    });
+
     return res.json({
       success: true,
       type: 'frigos',
@@ -672,10 +953,63 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
       frigos
     });
   } catch (err: any) {
+    logSyncEvent('frigos', {
+      status: 'ERROR',
+      records: 0,
+      durationMs: typeof startFrigos !== 'undefined' ? Date.now() - startFrigos : 0,
+      error: err.message || 'Erreur lors de la synchronisation Google Drive',
+      fileId: (req.query.fileId as string) || CONFIG_DRIVE.FRIGOS_FILE_ID
+    });
+
     return res.status(500).json({
       success: false,
       error: err.message || 'Erreur lors de la synchronisation Google Drive'
     });
+  }
+});
+
+// -------------------------------------------------------------
+// SYNC STATUS & AUDIT LOG ENDPOINTS
+// -------------------------------------------------------------
+app.get('/api/sync-status', (req: Request, res: Response) => {
+  try {
+    const data = readJsonFile<SyncStatusData>(SYNC_STATUS_FILE, getInitialSyncStatus());
+    return res.json({ success: true, ...data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/sync-status/download', (req: Request, res: Response) => {
+  try {
+    const data = readJsonFile<SyncStatusData>(SYNC_STATUS_FILE, getInitialSyncStatus());
+    const jsonStr = JSON.stringify(data, null, 2);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="journal_synchronisation_eskiflow.json"');
+    return res.send(jsonStr);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Téléchargement du journal de synchronisation au format Excel (.xlsx)
+app.get('/api/sync-status/excel', (req: Request, res: Response) => {
+  try {
+    const excelPath = path.resolve(DATA_DIR, 'journal_synchro_eskiflow.xlsx');
+    // Si le fichier n'existe pas encore, le générer immédiatement
+    if (!fs.existsSync(excelPath)) {
+      writeSyncExcel();
+    }
+    if (!fs.existsSync(excelPath)) {
+      return res.status(404).json({
+        error: 'Fichier Excel non encore généré. Attendez la prochaine synchronisation ou rechargez les données.'
+      });
+    }
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="journal_synchro_eskiflow.xlsx"');
+    return res.sendFile(excelPath);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

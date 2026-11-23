@@ -217,6 +217,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+
             {/* Icône animée Mise à jour */}
             {hasUpdate && onApplyUpdate && (
               <button
@@ -329,6 +330,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>🔗 Liens d'Intégration AppSheet</span>
                   </button>
                 )}
+
 
                 {isAdmin && onOpenAccessControl && (
                   <button

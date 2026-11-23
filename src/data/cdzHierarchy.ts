@@ -112,7 +112,11 @@ export const CDZ_LIST: CdzProfile[] = [
   {
     email: 'tarak.boukottaya@vilavi.tn',
     name: 'BOUKOTTAYA TAREK',
-    aliases: ['BOUKOTTAYA TAREK', 'TAREK BOUKOTTAYA', 'BOUKOTTAYA TAREK '],
+    aliases: [
+      'BOUKOTTAYA TAREK', 'TAREK BOUKOTTAYA', 'BOUKOTTAYA TAREK ',
+      'TARAK BOUKATAYA', 'BOUKATAYA TARAK', 'TARAK BOUKOTTAYA', 'BOUKOTTAYA TARAK',
+      'BOUKATAYA', 'BOUKOTTAYA', 'TARAK BOUKOTAYA', 'BOUKOTAYA TARAK'
+    ],
     teamEmails: [
       'tarak.boukottaya@vilavi.tn',
       'wajih.arwa@vilavi.tn',
@@ -120,8 +124,15 @@ export const CDZ_LIST: CdzProfile[] = [
     ],
     supervisors: [
       'ARWA WAJIH',
+      'WAJIH ARWA',
       'HRICHI OMAR',
-      'BOUKOTTAYA TAREK'
+      'OMAR HRICHI',
+      'BOUKOTTAYA TAREK',
+      'TARAK BOUKATAYA',
+      'TARAK BOUKOTTAYA',
+      'wajih.arwa@vilavi.tn',
+      'omar.hrichi@vilavi.tn',
+      'tarak.boukottaya@vilavi.tn'
     ],
     prvs: [],
     members: [
@@ -242,6 +253,12 @@ export const EMAIL_TO_NAME: Record<string, string> = {
 // =========================================================================
 export const SUPERVISOR_TO_CDZ: Record<string, { cdzEmail: string; cdzName: string }> = {
   // Mohamed Jouini
+  'mohamed.jouini@vilavi.tn': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
+  'ahmed.trabelsi@vilavi.tn': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
+  'aymen.amdouni@vilavi.tn': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
+  'seif.ayari@vilavi.tn': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
+  'chokri.zghidi@vilavi.tn': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
+  'sami.mezzi@vilavi.tn': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
   'AHMED TRABELSI': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
   'AMDOUNI AYMEN': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
   'AYMEN AMDOUNI': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
@@ -256,6 +273,8 @@ export const SUPERVISOR_TO_CDZ: Record<string, { cdzEmail: string; cdzName: stri
   'MOHAMED JOUINI': { cdzEmail: 'mohamed.jouini@vilavi.tn', cdzName: 'JOUINI MOHAMED' },
 
   // Mourad Hasnaoui
+  'mourad.hasnaoui@vilavi.tn': { cdzEmail: 'mourad.hasnaoui@vilavi.tn', cdzName: 'MOURAD HASNAOUI' },
+  'issam.saidi@vilavi.tn': { cdzEmail: 'mourad.hasnaoui@vilavi.tn', cdzName: 'MOURAD HASNAOUI' },
   'ISSAM SAIDI': { cdzEmail: 'mourad.hasnaoui@vilavi.tn', cdzName: 'MOURAD HASNAOUI' },
   'ZGHIDI CHOKRI_BIS': { cdzEmail: 'mourad.hasnaoui@vilavi.tn', cdzName: 'MOURAD HASNAOUI' },
   'MEZZI SAMI_BIS': { cdzEmail: 'mourad.hasnaoui@vilavi.tn', cdzName: 'MOURAD HASNAOUI' },
@@ -263,6 +282,8 @@ export const SUPERVISOR_TO_CDZ: Record<string, { cdzEmail: string; cdzName: stri
   'HASNAOUI MOURAD': { cdzEmail: 'mourad.hasnaoui@vilavi.tn', cdzName: 'MOURAD HASNAOUI' },
 
   // Fahmi Soudani
+  'fahmi.soudani@vilavi.tn': { cdzEmail: 'fahmi.soudani@vilavi.tn', cdzName: 'SOUDANI FAHMI' },
+  'wajdi.kalaii@vilavi.tn': { cdzEmail: 'fahmi.soudani@vilavi.tn', cdzName: 'SOUDANI FAHMI' },
   'SAIF AYARI_BIS': { cdzEmail: 'fahmi.soudani@vilavi.tn', cdzName: 'SOUDANI FAHMI' },
   'WAJDI KALAII': { cdzEmail: 'fahmi.soudani@vilavi.tn', cdzName: 'SOUDANI FAHMI' },
   'AHMED TRABELSI_BIS': { cdzEmail: 'fahmi.soudani@vilavi.tn', cdzName: 'SOUDANI FAHMI' },
@@ -276,8 +297,21 @@ export const SUPERVISOR_TO_CDZ: Record<string, { cdzEmail: string; cdzName: stri
   'OMAR HRICHI': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
   'BOUKOTTAYA TAREK': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
   'TARAK BOUKOTTAYA': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'TARAK BOUKATAYA': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'BOUKATAYA TARAK': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'TARAK BOUKOTAYA': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'BOUKOTAYA TARAK': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'BOUKATAYA': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'BOUKOTTAYA': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'tarak.boukottaya@vilavi.tn': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'wajih.arwa@vilavi.tn': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
+  'omar.hrichi@vilavi.tn': { cdzEmail: 'tarak.boukottaya@vilavi.tn', cdzName: 'BOUKOTTAYA TAREK' },
 
   // Sami Ezzar
+  'sami.ez@vilavi.tn': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
+  'hamza.miled@vilavi.tn': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
+  'maher.ayeb@vilavi.tn': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
+  'ahmed.amara@vilavi.tn': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
   'MAHER AYEB': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
   'AMARA MOHAMED AHMED': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
   'AHMED AMARA': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
@@ -288,6 +322,9 @@ export const SUPERVISOR_TO_CDZ: Record<string, { cdzEmail: string; cdzName: stri
   'SAMI EZZAR': { cdzEmail: 'sami.ez@vilavi.tn', cdzName: 'EZZAR SAMI' },
 
   // Lotfi Debeghi
+  'debeghi.lotfi@vilavi.tn': { cdzEmail: 'debeghi.lotfi@vilavi.tn', cdzName: 'DABEGHI LOTFI' },
+  'mohamed.rebah@vilavi.tn': { cdzEmail: 'debeghi.lotfi@vilavi.tn', cdzName: 'DABEGHI LOTFI' },
+  'maher.benmansour@vilavi.tn': { cdzEmail: 'debeghi.lotfi@vilavi.tn', cdzName: 'DABEGHI LOTFI' },
   'REBAH MOHAMED': { cdzEmail: 'debeghi.lotfi@vilavi.tn', cdzName: 'DABEGHI LOTFI' },
   'MOHAMED REBAH': { cdzEmail: 'debeghi.lotfi@vilavi.tn', cdzName: 'DABEGHI LOTFI' },
   'MAHER BEN MANSOUR': { cdzEmail: 'debeghi.lotfi@vilavi.tn', cdzName: 'DABEGHI LOTFI' },
@@ -296,6 +333,8 @@ export const SUPERVISOR_TO_CDZ: Record<string, { cdzEmail: string; cdzName: stri
   'LOTFI DEBEGHI': { cdzEmail: 'debeghi.lotfi@vilavi.tn', cdzName: 'DABEGHI LOTFI' },
 
   // Abdelmajid Chouchene
+  'abdelmajid.chouchene@vilavi.tn': { cdzEmail: 'abdelmajid.chouchene@vilavi.tn', cdzName: 'CHOUCHENE ABDELMAJID' },
+  'anis.kouki@vilavi.tn': { cdzEmail: 'abdelmajid.chouchene@vilavi.tn', cdzName: 'CHOUCHENE ABDELMAJID' },
   'KOUKI ANIS': { cdzEmail: 'abdelmajid.chouchene@vilavi.tn', cdzName: 'CHOUCHENE ABDELMAJID' },
   'ANIS KOUKI': { cdzEmail: 'abdelmajid.chouchene@vilavi.tn', cdzName: 'CHOUCHENE ABDELMAJID' },
   'AMDOUNI AYMEN_BIS': { cdzEmail: 'abdelmajid.chouchene@vilavi.tn', cdzName: 'CHOUCHENE ABDELMAJID' },
@@ -575,6 +614,8 @@ export function isRecordAuthorizedForCdz(
   record: {
     chefZone?: string;
     superviseur?: string;
+    emailCdz?: string;
+    emailSup?: string;
     repr?: string;
     realisePar?: string;
     demandeur?: string;
@@ -610,6 +651,7 @@ export function isRecordAuthorizedForCdz(
 
   if (!cdz && (!allowedEmails || allowedEmails.length === 0)) {
     // Nouvel utilisateur sans configuration d'équipe -> ne voit rien d'autre que lui-même
+    if (record.emailCdz && record.emailCdz.toLowerCase() === em) return true;
     if (record.visiteurEmail && record.visiteurEmail.toLowerCase() === em) return true;
     if (record.realisePar && record.realisePar.toLowerCase() === em) return true;
     if (record.demandeur && record.demandeur.toLowerCase() === em) return true;
@@ -618,6 +660,16 @@ export function isRecordAuthorizedForCdz(
 
   const teamEmailsList = (allowedEmails && allowedEmails.length > 0) ? allowedEmails : (cdz ? cdz.teamEmails : [em]);
   const allowedSet = new Set(teamEmailsList.map((e) => e.toLowerCase()));
+
+  // 0. Correspondance DIRECTE par adresse email CDZ ou Superviseur (@ CDZ / @ SUPERVISEUR)
+  if (record.emailCdz) {
+    const eCdz = record.emailCdz.trim().toLowerCase();
+    if (eCdz === em || allowedSet.has(eCdz)) return true;
+  }
+  if (record.emailSup) {
+    const eSup = record.emailSup.trim().toLowerCase();
+    if (allowedSet.has(eSup)) return true;
+  }
 
   // Construire la liste des noms et alias de collaborateurs autorisés
   const allowedNames: string[] = [];
@@ -637,6 +689,7 @@ export function isRecordAuthorizedForCdz(
   // A. Vérification par chef de zone / colonne chef ou affectation superviseur
   if (record.chefZone) {
     const cz = record.chefZone.trim().toLowerCase();
+    if (cz === em || allowedSet.has(cz)) return true;
     if (allowedNames.some((n) => cz.includes(n) || n.includes(cz))) return true;
     const match = getCdzForSupervisor(record.chefZone);
     if (match && (match.cdzEmail.toLowerCase() === em || allowedNames.some((n) => match.cdzName.toLowerCase().includes(n)))) return true;
@@ -645,6 +698,7 @@ export function isRecordAuthorizedForCdz(
   // B. Vérification par superviseur
   if (record.superviseur) {
     const sup = record.superviseur.trim().toLowerCase();
+    if (sup === em || allowedSet.has(sup)) return true;
     if (allowedNames.some((n) => sup.includes(n) || n.includes(sup))) return true;
     const match = getCdzForSupervisor(record.superviseur);
     if (match && (match.cdzEmail.toLowerCase() === em || allowedNames.some((n) => match.cdzName.toLowerCase().includes(n)))) return true;

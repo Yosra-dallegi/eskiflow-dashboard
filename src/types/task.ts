@@ -85,6 +85,8 @@ export interface FrigoItem {
   nomRep: string;
   superviseur: string;
   chefZone: string;
+  emailCdz?: string;
+  emailSup?: string;
   score: string | number;
   risque: string;
   actions: string;

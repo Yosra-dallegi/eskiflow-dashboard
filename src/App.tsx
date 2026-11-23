@@ -75,6 +75,31 @@ function computeTaskFields(rawTasks: TaskItem[]): TaskItem[] {
   });
 }
 
+function normalizeFrigo(f: FrigoItem): FrigoItem {
+  const czRaw = String(f.chefZone || '').trim();
+  const czUpper = czRaw.toUpperCase();
+  let chefZone = czRaw;
+  if (czUpper.includes('BOUK') || czUpper.includes('TARAK')) {
+    chefZone = 'BOUKOTTAYA TAREK';
+  } else if (czUpper.includes('EZZAR')) {
+    chefZone = 'EZZAR SAMI';
+  } else if (czUpper.includes('DABEGHI') || czUpper.includes('DEBEGHI')) {
+    chefZone = 'DABEGHI LOTFI';
+  } else if (czUpper.includes('JOUINI')) {
+    chefZone = 'JOUINI MOHAMED';
+  } else if (czUpper.includes('HASNAOUI')) {
+    chefZone = 'MOURAD HASNAOUI';
+  } else if (czUpper.includes('SOUDANI')) {
+    chefZone = 'SOUDANI FAHMI';
+  } else if (czUpper.includes('CHOUCHENE')) {
+    chefZone = 'CHOUCHENE ABDELMAJID';
+  }
+  return {
+    ...f,
+    chefZone
+  };
+}
+
 export default function App() {
   const { hasUpdate, applyUpdate, dismissUpdate } = useAppUpdate();
 
@@ -221,7 +246,7 @@ export default function App() {
       const cdz = CDZ_LIST.find((c) => c?.email && c.email.toLowerCase() === modeLower);
       if (cdz) {
         setFilterChefs([cdz.name]);
-        setZChefs([cdz.name]);
+        setZChefs([]);
       } else {
         setFilterChefs([]);
         setZChefs([]);
@@ -280,8 +305,9 @@ export default function App() {
 
         const savedFrigos = await storageService.loadFrigos();
         if (savedFrigos && savedFrigos.frigos && savedFrigos.frigos.length > 20) {
-          setFrigoData(savedFrigos);
-          loadedFrigosCount = savedFrigos.frigos.length;
+          const normData = { ...savedFrigos, frigos: savedFrigos.frigos.map(normalizeFrigo) };
+          setFrigoData(normData);
+          loadedFrigosCount = normData.frigos.length;
         }
 
         const maj = storageService.loadLastMaj();
@@ -300,8 +326,9 @@ export default function App() {
         if (loadedFrigosCount < 20) {
           loadFrigosFromStaticCache().then((cachedFrz) => {
             if (cachedFrz && cachedFrz.frigos && cachedFrz.frigos.length > 0) {
-              setFrigoData(cachedFrz);
-              storageService.saveFrigos(cachedFrz);
+              const normData = { ...cachedFrz, frigos: cachedFrz.frigos.map(normalizeFrigo) };
+              setFrigoData(normData);
+              storageService.saveFrigos(normData);
             }
           });
         }
@@ -338,9 +365,9 @@ export default function App() {
             .then((res) => res.json())
             .then((data) => {
               if (data.success && data.frigos && data.frigos.length > 0) {
-                const newFrzData = { frigos: data.frigos, maj: data.maj };
-                setFrigoData(newFrzData);
-                storageService.saveFrigos(newFrzData);
+                const normData = { frigos: data.frigos.map(normalizeFrigo), maj: data.maj };
+                setFrigoData(normData);
+                storageService.saveFrigos(normData);
               }
             })
             .catch((e) => console.warn('Auto-sync frigos error:', e));
@@ -403,6 +430,8 @@ export default function App() {
     return frigoData.frigos.filter((f) => isRecordAuthorizedForCdz({
       chefZone: f.chefZone,
       superviseur: f.superviseur,
+      emailCdz: f.emailCdz,
+      emailSup: f.emailSup,
       repr: f.nomRep || f.codeRep,
       codeClient: f.codeClient
     }, accessMode, cdzPermissions, managerEmails));
@@ -511,12 +540,7 @@ export default function App() {
     setZContrats([]);
     setZReps([]);
     setZSups([]);
-    if (isManager || isAdmin) {
-      setZChefs([]);
-    } else {
-      const cdz = CDZ_LIST.find((c) => c?.email && c.email.toLowerCase() === (accessMode || '').toLowerCase());
-      setZChefs(cdz ? [cdz.name] : []);
-    }
+    setZChefs([]);
     setZRisques([]);
     setZActions([]);
   };
@@ -652,7 +676,7 @@ export default function App() {
           message: `Synchronisation réussie : ${data.tasks.length.toLocaleString('fr-FR')} tâches chargées.`
         });
       } else if (data.type === 'frigos' && data.frigos) {
-        const newFrzData = { frigos: data.frigos, maj: data.maj };
+        const newFrzData = { frigos: data.frigos.map(normalizeFrigo), maj: data.maj };
         setFrigoData(newFrzData);
         await storageService.saveFrigos(newFrzData);
         setSyncFeedback({

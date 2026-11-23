@@ -415,6 +415,8 @@ const FRZ_CHAMPS: Record<string, string[]> = {
   nomRep: ['nom_rep', 'rep_nom', 'representant', 'commercial'],
   superviseur: ['superviseur', 'sup', 'nom_sup'],
   chefZone: ['chef_de_zone', 'chef_zone', 'nom_chef_zone', 'nom_chef'],
+  emailCdz: ['@_cdz', 'at_cdz', 'email_cdz', 'cdz_email', 'mail_cdz', 'cdz_mail'],
+  emailSup: ['@_superviseur', 'at_superviseur', 'email_sup', 'sup_email', 'mail_sup', 'sup_mail'],
   score: ['score', 'note', 'scoring'],
   risque: ['statut_risque_et', 'statut_risque', 'risque', 'niveau_risque', 'risk'],
   actions: ['actions', 'action', 'action_a_mener', 'consigne'],
@@ -556,6 +558,25 @@ export function parseFrigosExcel(workbook: XLSX.WorkBook, specificSheetName?: st
     // Score & Scans
     item.score = item.score !== '' ? item.score : '—';
     item.nbScan = item.nbScan !== '' ? num(item.nbScan) : 0;
+
+    // Normalisation du nom officiel du Chef de Zone
+    const rawChef = String(item.chefZone || '').trim();
+    const rawChefUpper = rawChef.toUpperCase();
+    if (rawChefUpper.includes('BOUK') || rawChefUpper.includes('TARAK')) {
+      item.chefZone = 'BOUKOTTAYA TAREK';
+    } else if (rawChefUpper.includes('EZZAR')) {
+      item.chefZone = 'EZZAR SAMI';
+    } else if (rawChefUpper.includes('DABEGHI') || rawChefUpper.includes('DEBEGHI')) {
+      item.chefZone = 'DABEGHI LOTFI';
+    } else if (rawChefUpper.includes('JOUINI')) {
+      item.chefZone = 'JOUINI MOHAMED';
+    } else if (rawChefUpper.includes('HASNAOUI')) {
+      item.chefZone = 'MOURAD HASNAOUI';
+    } else if (rawChefUpper.includes('SOUDANI')) {
+      item.chefZone = 'SOUDANI FAHMI';
+    } else if (rawChefUpper.includes('CHOUCHENE')) {
+      item.chefZone = 'CHOUCHENE ABDELMAJID';
+    }
 
     // GPS coordinates
     let lat: number | undefined;
