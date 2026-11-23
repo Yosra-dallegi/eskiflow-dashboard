@@ -371,6 +371,15 @@ export interface CdzPermissions {
   role?: string;
 }
 
+export interface SupervisorProfile {
+  email: string;
+  nom: string;
+  cdzEmail: string;
+  cdzName: string;
+  /** Noms utilisés dans les colonnes Superviseur des données Excel */
+  nomVariants: string[];
+}
+
 export interface Collaborateur {
   email: string;
   nom: string;
@@ -648,6 +657,50 @@ export function isRecordAuthorizedForCdz(
   // 4. Déterminer les emails d'équipe / collaborateurs autorisés
   const allowedEmails = userPerm?.allowedTeamEmails || DEFAULT_CDZ_PERMISSIONS[em]?.allowedTeamEmails;
   const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === em);
+  const supProfile = getSupervisorProfile(em);
+
+  // 4.bis : Si c'est un Superviseur (SUP), restreindre exclusivement à ses prévendeurs / son périmètre
+  if (supProfile && (!allowedEmails || allowedEmails.length === 0)) {
+    const supVariants = [
+      em,
+      supProfile.nom.toLowerCase(),
+      ...supProfile.nomVariants.map((v) => v.toLowerCase())
+    ];
+
+    // Trouver les membres ou PRV associés à ce superviseur
+    CDZ_LIST.forEach((c) => {
+      c.members.forEach((m) => {
+        if (m.email.toLowerCase() === em) {
+          supVariants.push(m.nom.toLowerCase());
+          if (m.codePrv) supVariants.push(m.codePrv.toLowerCase());
+        }
+      });
+    });
+
+    if (record.emailSup && record.emailSup.trim().toLowerCase() === em) return true;
+    if (record.superviseur) {
+      const sup = record.superviseur.trim().toLowerCase();
+      if (supVariants.some((v) => sup.includes(v) || v.includes(sup))) return true;
+    }
+    if (record.demandeur) {
+      const dem = record.demandeur.trim().toLowerCase();
+      if (supVariants.some((v) => dem.includes(v) || v.includes(dem))) return true;
+    }
+    if (record.realisePar) {
+      const rp = record.realisePar.trim().toLowerCase();
+      if (supVariants.some((v) => rp.includes(v) || v.includes(rp))) return true;
+    }
+    if (record.visiteurEmail && record.visiteurEmail.trim().toLowerCase() === em) return true;
+    if (record.visiteurNom) {
+      const vn = record.visiteurNom.trim().toLowerCase();
+      if (supVariants.some((v) => vn.includes(v) || v.includes(vn))) return true;
+    }
+    if (record.repr) {
+      const rep = record.repr.trim().toLowerCase();
+      if (supVariants.some((v) => rep.includes(v) || v.includes(rep))) return true;
+    }
+    return false;
+  }
 
   if (!cdz && (!allowedEmails || allowedEmails.length === 0)) {
     // Nouvel utilisateur sans configuration d'équipe -> ne voit rien d'autre que lui-même
@@ -728,4 +781,132 @@ export function isRecordAuthorizedForCdz(
   }
 
   return false;
+}
+
+// =========================================================================
+// TABLE DES SUPERVISEURS (profil individuel, pour accès rôle SUP)
+// =========================================================================
+export const SUPERVISOR_PROFILES: SupervisorProfile[] = [
+  // Jouini Mohamed
+  {
+    email: 'ahmed.trabelsi@vilavi.tn',
+    nom: 'AHMED TRABELSI',
+    cdzEmail: 'mohamed.jouini@vilavi.tn',
+    cdzName: 'JOUINI MOHAMED',
+    nomVariants: ['AHMED TRABELSI', 'TRABELSI AHMED', 'AHMED TRABELSI_BIS']
+  },
+  {
+    email: 'aymen.amdouni@vilavi.tn',
+    nom: 'AMDOUNI AYMEN',
+    cdzEmail: 'mohamed.jouini@vilavi.tn',
+    cdzName: 'JOUINI MOHAMED',
+    nomVariants: ['AMDOUNI AYMEN', 'AYMEN AMDOUNI', 'AMDOUNI AYMEN_BIS']
+  },
+  {
+    email: 'seif.ayari@vilavi.tn',
+    nom: 'SAIF AYARI',
+    cdzEmail: 'mohamed.jouini@vilavi.tn',
+    cdzName: 'JOUINI MOHAMED',
+    nomVariants: ['SAIF AYARI', 'SEIF AYARI', 'AYARI SEIF', 'SAIF AYARI_BIS']
+  },
+  {
+    email: 'issam.saidi@vilavi.tn',
+    nom: 'ISSAM SAIDI',
+    cdzEmail: 'mourad.hasnaoui@vilavi.tn',
+    cdzName: 'MOURAD HASNAOUI',
+    nomVariants: ['ISSAM SAIDI', 'SAIDI ISSAM', 'ISSAM SAIDI_BIS']
+  },
+  {
+    email: 'chokri.zghidi@vilavi.tn',
+    nom: 'ZGHIDI CHOKRI',
+    cdzEmail: 'mourad.hasnaoui@vilavi.tn',
+    cdzName: 'MOURAD HASNAOUI',
+    nomVariants: ['ZGHIDI CHOKRI', 'CHOKRI ZGHIDI', 'ZGHIDI CHOKRI_BIS']
+  },
+  {
+    email: 'sami.mezzi@vilavi.tn',
+    nom: 'MEZZI SAMI',
+    cdzEmail: 'mourad.hasnaoui@vilavi.tn',
+    cdzName: 'MOURAD HASNAOUI',
+    nomVariants: ['MEZZI SAMI', 'SAMI MEZZI', 'MEZZI SAMI_BIS']
+  },
+  // Soudani Fahmi
+  {
+    email: 'wajdi.kalaii@vilavi.tn',
+    nom: 'WAJDI KALAII',
+    cdzEmail: 'fahmi.soudani@vilavi.tn',
+    cdzName: 'SOUDANI FAHMI',
+    nomVariants: ['WAJDI KALAII', 'KALAII WAJDI']
+  },
+  // Boukottaya Tarek
+  {
+    email: 'wajih.arwa@vilavi.tn',
+    nom: 'ARWA WAJIH',
+    cdzEmail: 'tarak.boukottaya@vilavi.tn',
+    cdzName: 'BOUKOTTAYA TAREK',
+    nomVariants: ['ARWA WAJIH', 'WAJIH ARWA', 'ARWA WAJIH_BIS']
+  },
+  {
+    email: 'omar.hrichi@vilavi.tn',
+    nom: 'HRICHI OMAR',
+    cdzEmail: 'tarak.boukottaya@vilavi.tn',
+    cdzName: 'BOUKOTTAYA TAREK',
+    nomVariants: ['HRICHI OMAR', 'OMAR HRICHI', 'HRICHI OMAR_BIS']
+  },
+  // Sami Ezzar
+  {
+    email: 'maher.ayeb@vilavi.tn',
+    nom: 'MAHER AYEB',
+    cdzEmail: 'sami.ez@vilavi.tn',
+    cdzName: 'EZZAR SAMI',
+    nomVariants: ['MAHER AYEB', 'AYEB MAHER']
+  },
+  {
+    email: 'ahmed.amara@vilavi.tn',
+    nom: 'AMARA MOHAMED AHMED',
+    cdzEmail: 'sami.ez@vilavi.tn',
+    cdzName: 'EZZAR SAMI',
+    nomVariants: ['AMARA MOHAMED AHMED', 'AHMED AMARA', 'AMARA AHMED']
+  },
+  {
+    email: 'hamza.miled@vilavi.tn',
+    nom: 'MILED HAMZA',
+    cdzEmail: 'sami.ez@vilavi.tn',
+    cdzName: 'EZZAR SAMI',
+    nomVariants: ['MILED HAMZA', 'HAMZA MILED']
+  },
+  // Debeghi Lotfi
+  {
+    email: 'mohamed.rebah@vilavi.tn',
+    nom: 'REBAH MOHAMED',
+    cdzEmail: 'debeghi.lotfi@vilavi.tn',
+    cdzName: 'DABEGHI LOTFI',
+    nomVariants: ['REBAH MOHAMED', 'MOHAMED REBAH']
+  },
+  {
+    email: 'maher.benmansour@vilavi.tn',
+    nom: 'BEN MANSOUR MAHER',
+    cdzEmail: 'debeghi.lotfi@vilavi.tn',
+    cdzName: 'DABEGHI LOTFI',
+    nomVariants: ['BEN MANSOUR MAHER', 'MAHER BEN MANSOUR']
+  },
+  // Chouchene Abdelmajid
+  {
+    email: 'anis.kouki@vilavi.tn',
+    nom: 'KOUKI ANIS',
+    cdzEmail: 'abdelmajid.chouchene@vilavi.tn',
+    cdzName: 'CHOUCHENE ABDELMAJID',
+    nomVariants: ['KOUKI ANIS', 'ANIS KOUKI']
+  }
+];
+
+/**
+ * Retourne le profil superviseur si l'email est celui d'un SUP (et non d'un CDZ ou Manager)
+ */
+export function getSupervisorProfile(email: string): SupervisorProfile | null {
+  if (!email) return null;
+  const em = email.trim().toLowerCase();
+  // Ne pas matcher les CDZs ni les managers
+  if (CDZ_LIST.some((c) => c.email.toLowerCase() === em)) return null;
+  return SUPERVISOR_PROFILES.find((s) => s.email.toLowerCase() === em) || null;
 }

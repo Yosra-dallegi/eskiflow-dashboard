@@ -15,7 +15,7 @@ import {
   LogOut,
   Link2
 } from 'lucide-react';
-import { CDZ_LIST, ManagerUser } from '../data/cdzHierarchy';
+import { CDZ_LIST, ManagerUser, SUPERVISOR_PROFILES } from '../data/cdzHierarchy';
 
 interface NavbarProps {
   activeTab: 'pOverview' | 'pFrigos';
@@ -148,6 +148,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </option>
                     ))}
                   </optgroup>
+                  <optgroup label="Superviseurs (Voir leur secteur)">
+                    {SUPERVISOR_PROFILES.map((sup) => (
+                      <option key={sup.email} value={sup.email}>
+                        🔍 SUP : {sup.nom} ({sup.cdzName})
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
               {onOpenAccessControl && (
@@ -184,7 +191,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       const mgr = (managersList || []).find((m) => m.email.toLowerCase() === accessMode.toLowerCase());
                       if (mgr) return `👑 ${mgr.nom}`;
                       const cdz = CDZ_LIST.find((c) => c.email.toLowerCase() === accessMode.toLowerCase());
-                      return cdz ? `👤 CDZ : ${cdz.name}` : accessMode;
+                      if (cdz) return `👤 CDZ : ${cdz.name}`;
+                      const sup = SUPERVISOR_PROFILES.find((s) => s.email.toLowerCase() === accessMode.toLowerCase());
+                      if (sup) return `🔍 SUP : ${sup.nom}`;
+                      return accessMode;
                     })()
                 }
               </div>

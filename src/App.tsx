@@ -13,7 +13,10 @@ import {
   getAuthorizedTeamEmails,
   isUserAuthorized,
   isRecordAuthorizedForCdz,
-  getCdzForSupervisor
+  getCdzForSupervisor,
+  getSupervisorProfile,
+  SUPERVISOR_PROFILES,
+  SupervisorProfile
 } from './data/cdzHierarchy';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -204,6 +207,14 @@ export default function App() {
     return CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === (accessMode || '').toLowerCase());
   }, [accessMode]);
 
+  const supervisorProfile = useMemo(() => {
+    return getSupervisorProfile(accessMode || '');
+  }, [accessMode]);
+
+  const isSupervisor = useMemo(() => {
+    return Boolean(supervisorProfile);
+  }, [supervisorProfile]);
+
   const isCollab = useMemo(() => {
     const em = (accessMode || '').trim().toLowerCase();
     return ALL_COLLABORATORS.some((c) => c?.email && c.email.toLowerCase() === em);
@@ -217,7 +228,7 @@ export default function App() {
   // Zéro blocage injustifié : tout collaborateur, manager ou utilisateur avec email valide est autorisé
   const isAuthorized = Boolean(
     accessMode &&
-    (isManager || isCdz || isCollab || isCustomUser || accessMode.includes('@') || accessMode === 'MANAGER')
+    (isManager || isCdz || isSupervisor || isCollab || isCustomUser || accessMode.includes('@') || accessMode === 'MANAGER')
   );
 
   const handleSaveCdzPermissions = (updated: Record<string, CdzPermissions>) => {
@@ -736,6 +747,7 @@ export default function App() {
     if (ADMIN_EMAILS.includes(lower)) return true;
     if ((managersList || []).some((m) => m?.email && m.email.toLowerCase() === lower)) return true;
     if (CDZ_LIST.some((c) => c?.email && c.email.toLowerCase() === lower)) return true;
+    if (SUPERVISOR_PROFILES.some((s) => s.email.toLowerCase() === lower)) return true;
     if (cdzPermissions && cdzPermissions[lower]) return true;
     if (ALL_COLLABORATORS.some((c) => c?.email && c.email.toLowerCase() === lower)) return true;
     return lower.includes('@');

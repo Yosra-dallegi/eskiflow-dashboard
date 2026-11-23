@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { 
   CDZ_LIST, 
+  SUPERVISOR_PROFILES,
   ALL_MODULES, 
   ALL_COLLABORATORS, 
   ModuleKey, 
@@ -196,7 +197,21 @@ export const AccessControlModal: React.FC<AccessControlModalProps> = ({
       }
     });
 
-    // 4. Utilisateurs personnalisés enregistrés dans localPerms
+    // 4. Superviseurs
+    SUPERVISOR_PROFILES.forEach((s) => {
+      const em = s.email.toLowerCase();
+      if (!map.has(em)) {
+        map.set(em, {
+          email: em,
+          nom: s.nom,
+          role: `Superviseur (${s.cdzName})`,
+          isManager: false,
+          isCdz: false
+        });
+      }
+    });
+
+    // 5. Utilisateurs personnalisés enregistrés dans localPerms
     Object.keys(localPerms).forEach((em) => {
       const lower = em.toLowerCase();
       if (!map.has(lower)) {
