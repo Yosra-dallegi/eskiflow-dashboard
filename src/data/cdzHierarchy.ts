@@ -695,6 +695,42 @@ export function isRecordAuthorizedForCdz(
     return false;
   }
 
+  // 4.ter : Si c'est un Chef de Zone (CDZ), isoler STRICTEMENT à sa propre zone géographique
+  if (cdz) {
+    const cdzNames = [
+      cdz.name.toLowerCase(),
+      ...cdz.aliases.map((a) => a.toLowerCase())
+    ];
+    const cdzSups = cdz.supervisors.map((s) => s.toLowerCase());
+
+    // 0. Frigos : email CDZ direct
+    if (record.emailCdz && record.emailCdz.trim().toLowerCase() === em) return true;
+
+    // 1. Vérification par chefZone (Tâches & Frigos de sa zone)
+    if (record.chefZone) {
+      const cz = record.chefZone.trim().toLowerCase();
+      if (cdzNames.some((n) => cz === n || cz.includes(n) || n.includes(cz))) return true;
+      const match = getCdzForSupervisor(record.chefZone);
+      if (match) {
+        if (match.cdzEmail.toLowerCase() === em || cdzNames.some((n) => match.cdzName.toLowerCase() === n)) return true;
+        return false; // Affecté à un autre CDZ -> exclusion formelle
+      }
+    }
+
+    // 2. Vérification par superviseur rattaché à ce CDZ
+    if (record.superviseur) {
+      const sup = record.superviseur.trim().toLowerCase();
+      if (cdzSups.some((s) => sup === s || sup.includes(s) || s.includes(sup))) return true;
+      const match = getCdzForSupervisor(record.superviseur);
+      if (match) {
+        if (match.cdzEmail.toLowerCase() === em || cdzNames.some((n) => match.cdzName.toLowerCase() === n)) return true;
+        return false; // Superviseur d'un autre CDZ -> exclusion formelle
+      }
+    }
+
+    return false;
+  }
+
   if (!cdz && (!allowedEmails || allowedEmails.length === 0)) {
     // Nouvel utilisateur sans configuration d'équipe -> ne voit rien d'autre que lui-même
     if (record.emailCdz && record.emailCdz.toLowerCase() === em) return true;
