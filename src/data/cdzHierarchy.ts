@@ -677,28 +677,21 @@ export function isRecordAuthorizedForCdz(
       });
     });
 
+    // 1. Frigos : rattachement direct par email du superviseur
     if (record.emailSup && record.emailSup.trim().toLowerCase() === em) return true;
+
+    // 2. Périmètre sectoriel du superviseur (Tâches et Frigos de sa zone)
     if (record.superviseur) {
       const sup = record.superviseur.trim().toLowerCase();
       if (supVariants.some((v) => sup.includes(v) || v.includes(sup))) return true;
     }
+
+    // 3. Tâches créées par le superviseur lui-même si non rattachées
     if (record.demandeur) {
       const dem = record.demandeur.trim().toLowerCase();
-      if (supVariants.some((v) => dem.includes(v) || v.includes(dem))) return true;
+      if (dem === em || supVariants.some((v) => dem.includes(v) || v.includes(dem))) return true;
     }
-    if (record.realisePar) {
-      const rp = record.realisePar.trim().toLowerCase();
-      if (supVariants.some((v) => rp.includes(v) || v.includes(rp))) return true;
-    }
-    if (record.visiteurEmail && record.visiteurEmail.trim().toLowerCase() === em) return true;
-    if (record.visiteurNom) {
-      const vn = record.visiteurNom.trim().toLowerCase();
-      if (supVariants.some((v) => vn.includes(v) || v.includes(vn))) return true;
-    }
-    if (record.repr) {
-      const rep = record.repr.trim().toLowerCase();
-      if (supVariants.some((v) => rep.includes(v) || v.includes(rep))) return true;
-    }
+
     return false;
   }
 
