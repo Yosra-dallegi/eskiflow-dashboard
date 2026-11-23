@@ -1226,11 +1226,24 @@ async function startServer() {
 
   if (isProd) {
     if (fs.existsSync(distDir)) {
-      app.use(express.static(distDir));
+      app.use(express.static(distDir, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html') || filePath.endsWith('sw.js') || filePath.includes('registerSW')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+          } else if (filePath.includes('assets')) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        }
+      }));
     }
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
       if (fs.existsSync(distIndex)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
         res.sendFile(distIndex);
       } else {
         res.status(503).send('Application en cours de génération... Veuillez recharger dans quelques secondes.');

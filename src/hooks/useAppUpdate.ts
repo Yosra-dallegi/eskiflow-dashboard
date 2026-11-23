@@ -11,14 +11,25 @@ export function useAppUpdate() {
   } = useRegisterSW({
     onRegisteredSW(swUrl, registration) {
       if (registration) {
-        // Vérifie les mises à jour en arrière-plan toutes les 45 secondes
+        // Vérifie immédiatement et toutes les 30 secondes en arrière-plan
         const interval = setInterval(() => {
           registration.update().catch((err) => {
             console.debug('Vérification mise à jour SW :', err);
           });
-        }, 45 * 1000);
+        }, 30 * 1000);
 
-        return () => clearInterval(interval);
+        // Dès que l'utilisateur revient sur l'onglet, vérifier immédiatement
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === 'visible') {
+            registration.update().catch(() => {});
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+          clearInterval(interval);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
       }
     },
     onRegisterError(error) {
