@@ -1,0 +1,99 @@
+{
+  "mohamed.jouini@vilavi.tn": {
+    "allowedModules": [
+      "pOverview",
+      "pFrigos"
+    ],
+    "allowedTeamEmails": [
+      "ahmed.trabelsi@vilavi.tn",
+      "aymen.amdouni@vilavi.tn",
+      "chokri.zghidi@vilavi.tn",
+      "dhia.manai@vilavi.tn",
+      "issam.saidi@vilavi.tn",
+      "mohamed.jouini@vilavi.tn",
+      "sami.mezzi@vilavi.tn",
+      "seif.ayari@vilavi.tn"
+    ]
+  },
+  "mourad.hasnaoui@vilavi.tn": {
+    "allowedModules": [
+      "pOverview",
+      "pFrigos"
+    ],
+    "allowedTeamEmails": [
+      "chokri.zghidi@vilavi.tn",
+      "issam.saidi@vilavi.tn",
+      "mourad.hasnaoui@vilavi.tn",
+      "sami.mezzi@vilavi.tn"
+    ]
+  },
+  "fahmi.soudani@vilavi.tn": {
+    "allowedModules": [
+      "pOverview",
+      "pFrigos"
+    ],
+    "allowedTeamEmails": [
+      "ahmed.trabelsi@vilavi.tn",
+      "fahmi.soudani@vilavi.tn",
+      "seif.ayari@vilavi.tn",
+      "wajdi.kalaii@vilavi.tn"
+    ]
+  },
+  "tarak.boukottaya@vilavi.tn": {
+    "allowedModules": [
+      "pOverview",
+      "pFrigos"
+    ],
+    "allowedTeamEmails": [
+      "omar.hrichi@vilavi.tn",
+      "tarak.boukottaya@vilavi.tn",
+      "wajih.arwa@vilavi.tn"
+    ]
+  },
+  "sami.ez@vilavi.tn": {
+    "allowedModules": [
+      "pOverview",
+      "pFrigos"
+    ],
+    "allowedTeamEmails": [
+      "ahmed.amara@vilavi.tn",
+      "hamza.miled@vilavi.tn",
+      "maher.ayeb@vilavi.tn",
+      "omar.hrichi@vilavi.tn",
+      "sami.ez@vilavi.tn"
+    ]
+  },
+  "debeghi.lotfi@vilavi.tn": {
+    "allowedModules": [
+      "pOverview",
+      "pFrigos"
+    ],
+    "allowedTeamEmails": [
+      "debeghi.lotfi@vilavi.tn",
+      "maher.benmansour@vilavi.tn",
+      "mohamed.rebah@vilavi.tn"
+    ]
+  },
+  "abdelmajid.chouchene@vilavi.tn": {
+    "allowedModules": [
+      "pOverview",
+      "pFrigos"
+    ],
+    "allowedTeamEmails": [
+      "abdelmajid.chouchene@vilavi.tn",
+      "anis.kouki@vilavi.tn",
+      "aymen.amdouni@vilavi.tn",
+      "wajih.arwa@vilavi.tn",
+      "omar.hrichi@vilavi.tn"
+    ]
+  },
+  "rafik.khefifi@vilavi.tn": {
+    "allowedModules": [
+      "pOverview"
+    ],
+    "allowedTeamEmails": [],
+    "isGlobalManager": true,
+    "nom": "Rafik Khefifi",
+    "role": "Manager Opérations"
+  }
+}

@@ -499,6 +499,13 @@ export const DEFAULT_CDZ_PERMISSIONS: Record<string, CdzPermissions> = {
       'wajih.arwa@vilavi.tn',
       'omar.hrichi@vilavi.tn'
     ]
+  },
+  'rafik.khefifi@vilavi.tn': {
+    allowedModules: ['pOverview'], // Rafik Khefifi : uniquement Suivi des Tâches
+    allowedTeamEmails: [],
+    isGlobalManager: true, // Vue 360° sur toutes les tâches du pays
+    nom: 'Rafik Khefifi',
+    role: 'Manager Opérations'
   }
 };
 
@@ -582,13 +589,13 @@ export function isModuleAllowed(
   // Admin exclusif
   if (email === 'yosra.dallegi@vilavi.tn' || email === 'yosra.dallgi@vilavi.tn') return true;
 
-  // 1. Permissions personnalisées explicites
-  const userPerm = customPermissions?.[email];
+  // 1. Permissions explicites (personnalisées ou par défaut)
+  const userPerm = customPermissions?.[email] || DEFAULT_CDZ_PERMISSIONS[email];
   if (userPerm?.allowedModules && Array.isArray(userPerm.allowedModules)) {
     return userPerm.allowedModules.includes(moduleKey);
   }
 
-  // 2. Managers par défaut
+  // 2. Managers par défaut (sans restriction de modules spécifique)
   const effectiveManagers = (managerEmails || DEFAULT_MANAGERS.map((m) => m.email)).map((e) => e.toLowerCase());
   if (effectiveManagers.includes(email) && (!userPerm || userPerm.isGlobalManager !== false)) {
     return true;
