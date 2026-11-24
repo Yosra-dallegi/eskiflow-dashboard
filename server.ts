@@ -128,19 +128,25 @@ const FRZ_CHAMPS: Record<string, string[]> = {
 
 // Function to download file from Google Drive via Node.js
 async function downloadDriveFileBuffer(fileId: string, authHeader?: string, gid?: string): Promise<Buffer> {
-  const headers: Record<string, string> = {
+  const publicHeaders: Record<string, string> = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
   };
-  if (authHeader) {
-    headers['Authorization'] = authHeader;
-  }
+  const authHeaders: Record<string, string> = {
+    ...publicHeaders,
+    ...(authHeader ? { Authorization: authHeader } : {})
+  };
 
   // 1. Priorité Google Sheets : export direct CSV (avec gid si fourni) ou XLSX
   try {
     const exportUrl = gid
       ? `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv&gid=${gid}`
       : `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
-    const exportRes = await fetch(exportUrl, { headers, redirect: 'follow' });
+    
+    // Essayer sans Authorization d'abord car les documents publics renvoient 401 si un token non-Google est transmis
+    let exportRes = await fetch(exportUrl, { headers: publicHeaders, redirect: 'follow' });
+    if (!exportRes.ok && authHeader) {
+      exportRes = await fetch(exportUrl, { headers: authHeaders, redirect: 'follow' });
+    }
     if (exportRes.ok) {
       const expArr = await exportRes.arrayBuffer();
       const expBuf = Buffer.from(expArr);
@@ -154,7 +160,10 @@ async function downloadDriveFileBuffer(fileId: string, authHeader?: string, gid?
   // 2. Try direct download URL with virus scan bypass confirm=t
   try {
     const directUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
-    const res = await fetch(directUrl, { headers, redirect: 'follow' });
+    let res = await fetch(directUrl, { headers: publicHeaders, redirect: 'follow' });
+    if (!res.ok && authHeader) {
+      res = await fetch(directUrl, { headers: authHeaders, redirect: 'follow' });
+    }
     if (res.ok) {
       const arr = await res.arrayBuffer();
       const buf = Buffer.from(arr);
@@ -168,7 +177,10 @@ async function downloadDriveFileBuffer(fileId: string, authHeader?: string, gid?
   // 3. Fallback to format=xlsx
   try {
     const exportUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
-    const exportRes = await fetch(exportUrl, { headers, redirect: 'follow' });
+    let exportRes = await fetch(exportUrl, { headers: publicHeaders, redirect: 'follow' });
+    if (!exportRes.ok && authHeader) {
+      exportRes = await fetch(exportUrl, { headers: authHeaders, redirect: 'follow' });
+    }
     if (exportRes.ok) {
       const expArr = await exportRes.arrayBuffer();
       const expBuf = Buffer.from(expArr);
@@ -571,12 +583,38 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
             // Sauvegarder dans le cache local pour accélérer les prochains redémarrages
             try {
               const cacheCsvPath = path.resolve(__dirname, 'public/data/eskiflow_taches.csv');
+              fs.mkdirSync(path.dirname(cacheCsvPath), { recursive: true });
               fs.writeFileSync(cacheCsvPath, isCsv ? taskBuffer : XLSX.utils.sheet_to_csv(taskSheet));
             } catch {}
           }
         } catch (err: any) {
           taskErrorMsg = err.message;
-          console.warn('Erreur lecture Drive pour tâches, recours au cache local:', err.message);
+          console.warn('Erreur lecture Drive pour tâches, tentative directe Google Sheet CSV:', err.message);
+          try {
+            const directUrl = `https://docs.google.com/spreadsheets/d/${effectiveTasksFileId}/export?format=csv&gid=${CONFIG_DRIVE.TASKS_GID}`;
+            const resDirect = await fetch(directUrl, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+              redirect: 'follow'
+            });
+            if (resDirect.ok) {
+              const csvText = await resDirect.text();
+              if (csvText.includes('ID_Tache') || csvText.includes(',')) {
+                const directWb = XLSX.read(csvText, { type: 'string' });
+                const directSheet = directWb.Sheets[directWb.SheetNames[0]];
+                if (directSheet) {
+                  rawTaskData = XLSX.utils.sheet_to_json(directSheet, { header: 1 });
+                  taskSourceUsed = `Google Sheet direct (${effectiveTasksFileId} - ${CONFIG_DRIVE.TASKS_GID})`;
+                  try {
+                    const cacheCsvPath = path.resolve(__dirname, 'public/data/eskiflow_taches.csv');
+                    fs.mkdirSync(path.dirname(cacheCsvPath), { recursive: true });
+                    fs.writeFileSync(cacheCsvPath, csvText, 'utf-8');
+                  } catch {}
+                }
+              }
+            }
+          } catch (eDirect: any) {
+            console.warn('Erreur repli direct Google Sheet CSV:', eDirect.message);
+          }
         }
       }
 
