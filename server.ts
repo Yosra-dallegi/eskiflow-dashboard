@@ -435,6 +435,11 @@ function writeJsonFile(filePath: string, data: any) {
   }
 }
 
+// Cache mémoire pour l'index clients afin d'éviter de re-télécharger/re-parser le gros classeur à chaque requête
+let memoizedClientsIndex: Record<string, any> | null = null;
+let lastClientsIndexLoad = 0;
+const CLIENTS_CACHE_TTL = 60 * 60 * 1000; // 1 heure
+
 // API endpoint: Automatic Google Drive synchronisation (supports overview/tasks, frigos, and realisation)
 app.get('/api/sync-drive', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -456,91 +461,103 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
       const clientsFileId = (req.query.clientsFileId as string) || savedConfig.clientsFileId || CONFIG_DRIVE.CLIENTS_FILE_ID;
       const tasksFileId = (req.query.tasksFileId as string) || (req.query.fileId as string) || savedConfig.tasksFileId || CONFIG_DRIVE.TASKS_FILE_ID;
 
-      // 1. Download and build Clients Index from CLIENTS_FILE_ID (with cache fallback)
+      // 1. Obtenir l'index clients ultra-rapidement (depuis la mémoire ou le cache local)
       const startClients = Date.now();
       let clientErrorMsg: string | null = null;
       let clientsIndex: Record<string, any> = {};
       const cacheClientPath = path.resolve(__dirname, 'public/data/clients_base_cache.xlsx');
 
-      let clientBuffer: Buffer | null = null;
-      try {
-        clientBuffer = await downloadDriveFileBuffer(clientsFileId, authHeader);
-        if (clientBuffer && clientBuffer.length > 5000) {
-          try {
-            fs.mkdirSync(path.dirname(cacheClientPath), { recursive: true });
-            fs.writeFileSync(cacheClientPath, clientBuffer);
-          } catch {}
-        }
-      } catch (err: any) {
-        clientErrorMsg = err.message;
-        console.warn('Erreur téléchargement Drive base clients, essai du cache:', err.message);
+      const isClientsCacheFresh = memoizedClientsIndex && (Date.now() - lastClientsIndexLoad < CLIENTS_CACHE_TTL);
+      if (isClientsCacheFresh) {
+        clientsIndex = memoizedClientsIndex!;
+      } else {
+        let clientBuffer: Buffer | null = null;
+        // Priorité 1 : Fichier local de cache (instantané ~5ms, évite tout timeout Render 502)
         if (fs.existsSync(cacheClientPath)) {
           try {
             clientBuffer = fs.readFileSync(cacheClientPath);
           } catch {}
         }
-      }
-
-      if (clientBuffer) {
-        try {
-          const clWb = XLSX.read(clientBuffer, { type: 'buffer' });
-          const clSheetName = clWb.SheetNames.find((s) => s.toLowerCase().includes('client') || s.toLowerCase().includes('base')) || clWb.SheetNames[0];
-          const clSheet = clWb.Sheets[clSheetName];
-          const rawClData: any[][] = clSheet ? XLSX.utils.sheet_to_json(clSheet, { header: 1 }) : [];
-          if (rawClData.length >= 2) {
-            const clHeads = (rawClData[0] || []).map(norm);
-            const kCode = findCol(clHeads, 'code_client', 'client_code', 'code');
-            const kChef = findCol(clHeads, 'nom_chef_zone', 'chef_zone', 'chef');
-            const kCdr = findCol(clHeads, 'des_delegation', 'cdr', 'delegation');
-            const kRepr = findCol(clHeads, 'nom_rep', 'repr_nom', 'representant');
-            const kNom = findCol(clHeads, 'raison_social', 'client_nom', 'nom');
-            const kCa25 = findCol(clHeads, 'ca_2025', 'ca_ttc_sell_out_2025');
-            const kCa26 = findCol(clHeads, 'ca_2026', 'ca_ttc_sell_out_2026');
-            const kStatut = findCol(clHeads, 'statut');
-            const kDins = findCol(clHeads, 'date_inscription', 'date_insc');
-            const kLat = findCol(clHeads, 'latitude', 'lat');
-            const kLng = findCol(clHeads, 'longitude', 'lng');
-            const kHab = findCol(clHeads, 'etat_d_avancement_habillage', 'habillage');
-            const kNbrFrz = findCol(clHeads, 'nbr_frz', 'nombre_frz', 'frigos');
-            const kAct = findCol(clHeads, 'activite', 'activity');
-            const kRout = findCol(clHeads, 'routing', 'tournee');
-            const kGsm = findCol(clHeads, 'gsm_sys', 'gsm_fid', 'gsm');
-
-            rawClData.slice(1).forEach((r) => {
-              const o: Record<string, any> = {};
-              clHeads.forEach((h, i) => { if (h) o[h] = r[i]; });
-              const code = cleCode(kCode ? o[kCode] : '');
-              if (code) {
-                const clientEntry = {
-                  code,
-                  chef: String(kChef ? o[kChef] || '' : '').trim(),
-                  cdr: String(kCdr ? o[kCdr] || '' : '').trim(),
-                  repr: String(kRepr ? o[kRepr] || '' : '').trim(),
-                  nom: String(kNom ? o[kNom] || '' : '').trim(),
-                  ca25: kCa25 ? num(o[kCa25]) : 0,
-                  ca26: kCa26 ? num(o[kCa26]) : 0,
-                  statut: String(kStatut ? o[kStatut] || '' : '').trim(),
-                  dateInsc: kDins ? isoDate(o[kDins]) : '',
-                  inscrit: kDins ? String(o[kDins] || '').trim() !== '' : false,
-                  lat: kLat ? num(o[kLat]) : 0,
-                  lng: kLng ? num(o[kLng]) : 0,
-                  habillage: String(kHab ? o[kHab] || '' : '').trim(),
-                  nbrFrz: kNbrFrz ? num(o[kNbrFrz]) : 0,
-                  activite: String(kAct ? o[kAct] || '' : '').trim(),
-                  routing: String(kRout ? o[kRout] || '' : '').trim(),
-                  gsm: String(kGsm ? o[kGsm] || '' : '').trim()
-                };
-                clientsIndex[code] = clientEntry;
-                const unpadded = code.replace(/^0+/, '');
-                if (unpadded && unpadded !== code) {
-                  clientsIndex[unpadded] = clientEntry;
-                }
-              }
-            });
+        // Priorité 2 : Si le cache local n'existe pas, télécharger depuis Drive
+        if (!clientBuffer) {
+          try {
+            clientBuffer = await downloadDriveFileBuffer(clientsFileId, authHeader);
+            if (clientBuffer && clientBuffer.length > 5000) {
+              try {
+                fs.mkdirSync(path.dirname(cacheClientPath), { recursive: true });
+                fs.writeFileSync(cacheClientPath, clientBuffer);
+              } catch {}
+            }
+          } catch (err: any) {
+            clientErrorMsg = err.message;
+            console.warn('Erreur téléchargement Drive base clients:', err.message);
           }
-        } catch (err: any) {
-          clientErrorMsg = err.message;
-          console.warn('Erreur parsing base clients:', err.message);
+        }
+
+        if (clientBuffer) {
+          try {
+            const clWb = XLSX.read(clientBuffer, { type: 'buffer' });
+            const clSheetName = clWb.SheetNames.find((s) => s.toLowerCase().includes('client') || s.toLowerCase().includes('base')) || clWb.SheetNames[0];
+            const clSheet = clWb.Sheets[clSheetName];
+            const rawClData: any[][] = clSheet ? XLSX.utils.sheet_to_json(clSheet, { header: 1 }) : [];
+            if (rawClData.length >= 2) {
+              const clHeads = (rawClData[0] || []).map(norm);
+              const kCode = findCol(clHeads, 'code_client', 'client_code', 'code');
+              const kChef = findCol(clHeads, 'nom_chef_zone', 'chef_zone', 'chef');
+              const kCdr = findCol(clHeads, 'des_delegation', 'cdr', 'delegation');
+              const kRepr = findCol(clHeads, 'nom_rep', 'repr_nom', 'representant');
+              const kNom = findCol(clHeads, 'raison_social', 'client_nom', 'nom');
+              const kCa25 = findCol(clHeads, 'ca_2025', 'ca_ttc_sell_out_2025');
+              const kCa26 = findCol(clHeads, 'ca_2026', 'ca_ttc_sell_out_2026');
+              const kStatut = findCol(clHeads, 'statut');
+              const kDins = findCol(clHeads, 'date_inscription', 'date_insc');
+              const kLat = findCol(clHeads, 'latitude', 'lat');
+              const kLng = findCol(clHeads, 'longitude', 'lng');
+              const kHab = findCol(clHeads, 'etat_d_avancement_habillage', 'habillage');
+              const kNbrFrz = findCol(clHeads, 'nbr_frz', 'nombre_frz', 'frigos');
+              const kAct = findCol(clHeads, 'activite', 'activity');
+              const kRout = findCol(clHeads, 'routing', 'tournee');
+              const kGsm = findCol(clHeads, 'gsm_sys', 'gsm_fid', 'gsm');
+
+              rawClData.slice(1).forEach((r) => {
+                const o: Record<string, any> = {};
+                clHeads.forEach((h, i) => { if (h) o[h] = r[i]; });
+                const code = cleCode(kCode ? o[kCode] : '');
+                if (code) {
+                  const clientEntry = {
+                    code,
+                    chef: String(kChef ? o[kChef] || '' : '').trim(),
+                    cdr: String(kCdr ? o[kCdr] || '' : '').trim(),
+                    repr: String(kRepr ? o[kRepr] || '' : '').trim(),
+                    nom: String(kNom ? o[kNom] || '' : '').trim(),
+                    ca25: kCa25 ? num(o[kCa25]) : 0,
+                    ca26: kCa26 ? num(o[kCa26]) : 0,
+                    statut: String(kStatut ? o[kStatut] || '' : '').trim(),
+                    dateInsc: kDins ? isoDate(o[kDins]) : '',
+                    inscrit: kDins ? String(o[kDins] || '').trim() !== '' : false,
+                    lat: kLat ? num(o[kLat]) : 0,
+                    lng: kLng ? num(o[kLng]) : 0,
+                    habillage: String(kHab ? o[kHab] || '' : '').trim(),
+                    nbrFrz: kNbrFrz ? num(o[kNbrFrz]) : 0,
+                    activite: String(kAct ? o[kAct] || '' : '').trim(),
+                    routing: String(kRout ? o[kRout] || '' : '').trim(),
+                    gsm: String(kGsm ? o[kGsm] || '' : '').trim()
+                  };
+                  clientsIndex[code] = clientEntry;
+                  const unpadded = code.replace(/^0+/, '');
+                  if (unpadded && unpadded !== code) {
+                    clientsIndex[unpadded] = clientEntry;
+                  }
+                }
+              });
+
+              memoizedClientsIndex = clientsIndex;
+              lastClientsIndexLoad = Date.now();
+            }
+          } catch (err: any) {
+            clientErrorMsg = err.message;
+            console.warn('Erreur parsing base clients:', err.message);
+          }
         }
       }
 
