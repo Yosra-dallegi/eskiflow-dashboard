@@ -139,8 +139,8 @@ async function downloadDriveFileBuffer(fileId: string, authHeader?: string, gid?
   // 1. Priorité Google Sheets : export direct CSV (avec gid si fourni) ou XLSX
   try {
     const exportUrl = gid
-      ? `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv&gid=${gid}`
-      : `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`;
+      ? `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv&gid=${gid}&_t=${Date.now()}`
+      : `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx&_t=${Date.now()}`;
     
     // Essayer sans Authorization d'abord car les documents publics renvoient 401 si un token non-Google est transmis
     let exportRes = await fetch(exportUrl, { headers: publicHeaders, redirect: 'follow' });
@@ -437,6 +437,9 @@ function writeJsonFile(filePath: string, data: any) {
 
 // API endpoint: Automatic Google Drive synchronisation (supports overview/tasks, frigos, and realisation)
 app.get('/api/sync-drive', async (req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   const type = (req.query.type as string) || 'frigos';
   const authHeader = req.headers.authorization;
 
@@ -591,7 +594,7 @@ app.get('/api/sync-drive', async (req: Request, res: Response) => {
           taskErrorMsg = err.message;
           console.warn('Erreur lecture Drive pour tâches, tentative directe Google Sheet CSV:', err.message);
           try {
-            const directUrl = `https://docs.google.com/spreadsheets/d/${effectiveTasksFileId}/export?format=csv&gid=${CONFIG_DRIVE.TASKS_GID}`;
+            const directUrl = `https://docs.google.com/spreadsheets/d/${effectiveTasksFileId}/export?format=csv&gid=${CONFIG_DRIVE.TASKS_GID}&_t=${Date.now()}`;
             const resDirect = await fetch(directUrl, {
               headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
               redirect: 'follow'

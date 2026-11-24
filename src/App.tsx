@@ -357,7 +357,7 @@ export default function App() {
 
           lastSyncTime = Date.now();
 
-          fetch(overviewEndpoint)
+          fetch(`${overviewEndpoint}&_t=${Date.now()}`)
             .then((res) => res.json())
             .then((data) => {
               if (data.success && data.tasks && data.tasks.length > 0) {
@@ -372,7 +372,7 @@ export default function App() {
             })
             .catch((e) => console.warn('Auto-sync tasks error:', e));
 
-          fetch('/api/sync-drive?type=frigos')
+          fetch(`/api/sync-drive?type=frigos&_t=${Date.now()}`)
             .then((res) => res.json())
             .then((data) => {
               if (data.success && data.frigos && data.frigos.length > 0) {
@@ -671,7 +671,7 @@ export default function App() {
           : '/api/sync-drive?type=overview';
       }
 
-      const res = await fetch(endpoint);
+      const res = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}`);
       const data = await res.json();
 
       if (!data.success) {
